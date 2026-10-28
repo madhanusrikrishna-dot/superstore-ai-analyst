@@ -4,6 +4,19 @@ Ask business questions about the Superstore sales data in plain English. A local
 (via Ollama, free, no API key) decides **what type of question** it is, then **fixed methods in code**
 do the analysis, so the numbers are always calculated, never guessed.
 
+**Results:** 46/46 recipe checks · 32/32 end-to-end questions with the real model (v1.0) · every answer shows its SQL.
+
+## See it work
+
+**"Why is profit low in Texas in 2017?"** drills down region → category → sub-category and finds the cause:
+![Diagnostic answer](docs/diagnostic.png)
+
+**"How is the West region doing in 2017?"** gives a health check with a company benchmark:
+![Health check answer](docs/health_check.png)
+
+**"Does discount affect profit?"** shows a correlation plus discount bands showing where losses start:
+![Correlation answer](docs/correlation.png)
+
 ## How it answers
 
 ```
@@ -37,6 +50,21 @@ So in this version:
 - all maths happens in code,
 - the AI only classifies questions and puts finished numbers into words,
 - every answer shows the SQL so a person can verify it.
+
+## Tested like a real release
+
+1. **Recipe tests** (`test_recipes.py`): every method checked against numbers verified by hand in SQL.
+2. **Evaluation suite** (`evaluate.py`): real questions through the real model. It checks question type,
+   filters, calculation, and that the explanation uses no invented numbers.
+3. **User testing**: questions typed freely, in new wording. Each bug found became a new test before it was fixed:
+
+| Question | Bug found | Fix |
+|---|---|---|
+| Which state lost the most money in 2017? | "Losing money" counted only the rows shown (1), not all states (9 of 47) | Count across all groups |
+| Why is profit low in Texas? | Drill-down stopped because a state sits in one region; % change on losses showed -30,376% | Skip single-value levels; show $ change for losses |
+| How is the Consumer segment doing? | Treated as a ranking with an invented "top 1"; AI called 31% "the majority" | Health-check rule + benchmark; wording rules |
+| Forecast profit for the next 6 months | Confident headline despite 145% backtest error | "Rough estimate only" + N-month total |
+| Show quarterly profit for Furniture | AI read a year-on-year *change* (-$4,478) as the quarter's profit (-$974) | Labels say "a change, not the value" |
 
 ## Run it
 
