@@ -9,6 +9,7 @@ so what we test is exactly what users get.
 """
 
 import os
+import re
 
 import pandas as pd
 
@@ -73,8 +74,23 @@ def answer(conn, df, question: str, previous: dict | None = None, params: dict |
                 "clarify": params.get("clarify_options") or []}
     result = compute(conn, params, question, model)
     result.notes = warnings + result.notes
+    result.next_questions = keep_year(result.next_questions, params["filters"])
     return {"question": question, "params": params, "source": source, "result": result,
             "narration": narrate(question, result, params, model), "clarify": []}
+
+
+def keep_year(questions: list, filters: dict) -> list:
+    """Suggested next questions stay in the same year as the answer ("Why is profit low in Texas in 2017?")."""
+    year = filters.get("year")
+    if not year:
+        return questions
+    out = []
+    for q in questions:
+        if re.search(r"\b20\d\d\b", q) or "forecast" in q.lower():
+            out.append(q)
+        else:
+            out.append(q.rstrip("?") + f" in {year}" + ("?" if q.endswith("?") else ""))
+    return out
 
 
 def custom_sql(conn, question: str, model: str = MODEL) -> recipes.Result:

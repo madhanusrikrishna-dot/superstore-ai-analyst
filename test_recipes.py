@@ -81,6 +81,10 @@ t = recipes.trend(conn, {**p, "q_type": "trend", "dimension": "none", "top_n": 0
 check("trend of a loss uses $ differences, not crazy % (Texas)",
       "%" not in dict(t.facts)["Weakest month vs same month last year"], dict(t.facts))
 
+import pipeline
+check("suggested next questions keep the year (2017)",
+      pipeline.keep_year(["Why is profit low in Texas?"], {"year": "2017"}) == ["Why is profit low in Texas in 2017?"])
+
 print("Q4 Diagnostic")
 p, r = ask("Why is profit low in the Central region?")
 check("routed as diagnostic", p["q_type"] == "diagnostic", p["q_type"])

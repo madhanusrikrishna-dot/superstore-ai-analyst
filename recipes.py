@@ -346,11 +346,11 @@ ORDER BY value ASC"""
              (f"{label} at the end of the path", fmt.value(metric, final["value"])),
              ("Its profit margin", fmt.pct(final["margin"])),
              ("Its average discount", fmt.pct(final["discount"])),
-             ("Average discount overall", fmt.pct(overall["discount"]))]
+             (f"Average discount, all of {scope_text(p['filters'])}", fmt.pct(overall["discount"]))]
     notes = []
     if final["discount"] > overall["discount"] * 1.3:
         notes.append(f"Likely driver: {trail.split(' → ')[-1]} gets a much higher average discount "
-                     f"({fmt.pct(final['discount'])} vs {fmt.pct(overall['discount'])} overall). "
+                     f"({fmt.pct(final['discount'])} vs {fmt.pct(overall['discount'])} across {scope_text(p['filters'])}). "
                      "This is a strong lead, not proof. Confirm with the business.")
     else:
         notes.append("Discount is not unusually high here. Look at costs, prices or product mix next.")

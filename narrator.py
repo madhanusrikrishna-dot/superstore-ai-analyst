@@ -27,6 +27,9 @@ Rules:
 - The numbers describe EXACTLY this scope: {scope}. Describe only this scope. If the question mentions
   something else (another region, year or product), do not claim the numbers are about it.
 - Use ONLY the numbers listed under Key numbers. Do not calculate or invent any new number or percentage.
+- Keep each number's meaning from its label. Example: "Texas loss compared with total profit: 9.5%" means
+  the loss equals 9.5% of total profit, NOT that Texas made 9.5% of the profit. Call a state a state,
+  a region a region.
 - Write exactly two short parts:
   **Why it matters:** 2 sentences on what this means for the business.
   **Suggested action:** 1 sentence with a concrete next step.
