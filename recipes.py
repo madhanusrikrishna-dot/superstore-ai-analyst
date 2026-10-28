@@ -100,6 +100,16 @@ PERIOD_SQL = {
 }
 
 
+def _trend_next(p: dict, label: str, metric: str) -> list:
+    """Follow-ups about what the user is looking at (e.g. Furniture), not a fixed example."""
+    focus = next((v for k, v in p["filters"].items() if k != "year"), None)
+    compare_by = "category" if "region" in p["filters"] else "region"
+    forecast = f"Forecast {label.lower()} for the next 3 months" if metric in ADDITIVE else "Forecast sales for the next 3 months"
+    if focus:
+        return [f"Why is profit low in {focus}?", f"How is {focus} doing?", forecast]
+    return [f"Compare {label.lower()} by {compare_by}", forecast, "Why is profit low in the Central region?"]
+
+
 def trend(conn, p: dict) -> Result:
     metric, period = p["metric"], p["period"]
     where, params = where_clause(p["filters"])
@@ -178,7 +188,7 @@ ORDER BY period"""
 
     # ---- seasonality: never judge a month/quarter only against the one before it
     if period != "year":
-        notes.insert(0, f"Seasonality: sales always drop after the Nov–Dec peak, so a fall vs the {period} before is "
+        notes.insert(0, f"Seasonality: business peaks in Nov–Dec and is quieter early in the year, so a change vs the {period} before is "
                         f"often just the season. The fair comparison is the same {period} last year (YoY).")
         if "change_vs_last_year" in df and df["change_vs_last_year"].notna().any():
             yoy = df.dropna(subset=["change_vs_last_year"])
@@ -218,10 +228,7 @@ ORDER BY period"""
         "trend", headline, facts=facts, table=show,
         chart=charts.line(df, "period", "value", metric, peak_label=peak["period"]),
         sql=[show_sql(sql, params)], notes=notes,
-        next_questions=[f"Compare {label.lower()} by region",
-                        f"Forecast {label.lower()} for the next 3 months" if metric in ADDITIVE
-                        else "Forecast sales for the next 3 months",
-                        "Why is profit low in the Central region?"],
+        next_questions=_trend_next(p, label, metric),
     )
 
 
