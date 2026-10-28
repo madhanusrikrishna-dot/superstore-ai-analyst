@@ -101,14 +101,17 @@ ORDER BY period"""
         return Result("trend", "Not enough periods to show a trend.", table=df, sql=[show_sql(sql, params)])
 
     label = METRIC_LABELS[metric]
-    if metric in RATIOS:
+    # % change is meaningless when values are losses (e.g. -$55 -> -$1,191), so use plain differences then
+    use_diff = metric in RATIOS or bool((df["value"] < 0).any())
+    if use_diff:
         df["change_vs_previous"] = df["value"].diff()
     else:
         df["change_vs_previous"] = df["value"].pct_change()
     lag = {"month": 12, "quarter": 4, "year": 1}[period]
     if period != "year" and len(df) > lag:
-        df["change_vs_last_year"] = (df["value"].diff(lag) if metric in RATIOS
+        df["change_vs_last_year"] = (df["value"].diff(lag) if use_diff
                                      else df["value"] / df["value"].shift(lag) - 1)
+    df = df.replace([np.inf, -np.inf], np.nan)
 
     first, last = df.iloc[0], df.iloc[-1]
     peak = df.loc[df["value"].idxmax()]
@@ -141,7 +144,7 @@ ORDER BY period"""
             last12 = df["value"].iloc[-12:].sum()
             prev12 = df["value"].iloc[-24:-12].sum()
             if metric not in RATIOS and prev12:
-                facts.append(("Last 12 months vs previous 12", fmt.pct(last12 / prev12 - 1, signed=True)))
+                facts.append(("Last 12 months vs previous 12", fmt.change(metric, prev12, last12)))
 
     direction = "rose" if last["value"] >= first["value"] else "fell"
     headline = (f"{label} {direction} {fmt.change(metric, first['value'], last['value']).lstrip('+-')} "
@@ -153,23 +156,28 @@ ORDER BY period"""
         last_b = df["value"].iloc[-block:].sum()
         first_b = df["value"].iloc[:block].sum()
         verb = "grew" if last_b >= first_b else "fell"
-        headline = (f"{label} {verb} {fmt.pct(abs(last_b / first_b - 1))} from the first {unit} "
+        verb = "improved" if (verb == "grew" and min(first_b, last_b) < 0) else verb
+        headline = (f"{label} {verb} {fmt.change(metric, first_b, last_b).lstrip('+-')} from the first {unit} "
                     f"({df['period'].iloc[0]} to {df['period'].iloc[block - 1]}) to the last {unit}; "
                     f"busiest {period} {peak['period']}")
-        facts[2] = (f"Change, first {unit} → last {unit}", fmt.pct(last_b / first_b - 1, signed=True))
+        facts[2] = (f"Change, first {unit} → last {unit}", fmt.change(metric, first_b, last_b))
 
     # ---- seasonality: never judge a month/quarter only against the one before it
     if period != "year":
         notes.insert(0, f"Seasonality: sales always drop after the Nov–Dec peak, so a fall vs the {period} before is "
                         f"often just the season. The fair comparison is the same {period} last year (YoY).")
-        if "change_vs_last_year" in df:
+        if "change_vs_last_year" in df and df["change_vs_last_year"].notna().any():
             yoy = df.dropna(subset=["change_vs_last_year"])
             w = yoy.loc[yoy["change_vs_last_year"].idxmin()]
             b = yoy.loc[yoy["change_vs_last_year"].idxmax()]
 
             def yoy_text(row):
                 c = row["change_vs_last_year"]
-                return f"{c * 100:+.1f} pts" if metric in RATIOS else fmt.pct(c, signed=True)
+                if metric in RATIOS:
+                    return f"{c * 100:+.1f} pts"
+                if use_diff:
+                    return ("+" if c >= 0 else "") + fmt.value(metric, c)
+                return fmt.pct(c, signed=True)
 
             facts[5] = (f"Weakest {period} vs same {period} last year", f"{w['period']} · {yoy_text(w)}")
             facts.insert(6, (f"Strongest {period} vs same {period} last year", f"{b['period']} · {yoy_text(b)}"))
@@ -209,7 +217,9 @@ def comparison(conn, p: dict) -> Result:
         dim = "sub_category" if dim == "category" else "category"
     where, params = where_clause(p["filters"])
     order = "ASC" if p["order"] == "asc" else "DESC"
-    limit = p["top_n"] or (15 if dim in ("state", "city", "customer_name", "product_name") else 50)
+    asked = p["top_n"] or 0
+    # a "which one…" question (top 1-2) still gets the next few as context in the chart and table
+    limit = max(asked, 5) if asked else (15 if dim in ("state", "city", "customer_name", "product_name") else 50)
     sql = f"""
 SELECT {dim},
        {METRICS[metric]} AS value,
@@ -226,35 +236,59 @@ LIMIT {int(limit)}"""
     total_sql = f"SELECT {METRICS[metric]} AS total, COUNT(DISTINCT {dim}) AS groups FROM superstore {where}"
     tot = run(conn, total_sql, params).iloc[0]
 
-    first, last = df.iloc[0], df.iloc[-1]
+    first = df.iloc[0]
     word = "lowest" if order == "ASC" else "highest"
-    facts = [(f"{word.title()} {label.lower()}", f"{first[dim]} · {fmt.value(metric, first['value'])}"),
-             (f"{'Highest' if order == 'ASC' else 'Lowest'} shown", f"{last[dim]} · {fmt.value(metric, last['value'])}")]
+    facts = [(f"{word.title()} {label.lower()}", f"{first[dim]} · {fmt.value(metric, first['value'])}")]
+    if len(df) > 1:
+        second = df.iloc[1]
+        facts.append((f"Next {word}", f"{second[dim]} · {fmt.value(metric, second['value'])}"))
     if metric in ADDITIVE and tot["total"]:
         df["share_of_total"] = df["value"] / tot["total"]
-        facts.append((f"{first[dim]} share of total {label.lower()}", fmt.pct(first["value"] / tot["total"])))
-    if metric not in RATIOS:
-        facts.append(("Overall " + label.lower(), fmt.value(metric, tot["total"])))
-    else:
-        facts.append(("Overall " + label.lower(), fmt.value(metric, tot["total"])))
-    losses = df[df["value"] < 0]
-    if len(losses):
-        facts.append(("Groups losing money", f"{len(losses)}: " + ", ".join(losses[dim].astype(str).head(5))))
+        if first["value"] < 0:
+            facts.append((f"{first[dim]} loss compared with total {label.lower()}",
+                          fmt.pct(abs(first["value"]) / tot["total"])))
+        else:
+            facts.append((f"{first[dim]} share of total {label.lower()}", fmt.pct(first["value"] / tot["total"])))
+    facts.append(("Overall " + label.lower(), fmt.value(metric, tot["total"])))
+
+    sqls = [show_sql(sql, params), show_sql(total_sql, params)]
+    if metric in ("profit", "margin"):
+        # count losing groups across ALL groups, not only the rows shown
+        loss_sql = f"""
+SELECT {dim}, {METRICS[metric]} AS value
+FROM superstore
+{where}
+GROUP BY {dim}
+HAVING {METRICS[metric]} < 0
+ORDER BY value ASC"""
+        losses = run(conn, loss_sql, params)
+        sqls.append(show_sql(loss_sql, params))
+        n_groups = int(tot["groups"])
+        nice = dim.replace("_", "-")
+        if len(losses):
+            names = ", ".join(losses[dim].astype(str).head(5)) + (" …" if len(losses) > 5 else "")
+            facts.append((f"Losing money", f"{len(losses)} of {n_groups} {nice} values: {names}"))
+        else:
+            facts.append((f"Losing money", f"none of {n_groups} {nice} values"))
+
     notes = []
-    if len(df) < tot["groups"]:
+    if asked and asked < len(df):
+        notes.append(f"You asked for the top {asked}; the next {len(df) - asked} are shown for context.")
+    elif len(df) < tot["groups"]:
         notes.append(f"Showing {len(df)} of {int(tot['groups'])} {dim.replace('_', '-')} values.")
 
     nice_dim = dim.replace("_", "-")
     headline = f"{first[dim]} has the {word} {label.lower()} ({fmt.value(metric, first['value'])}) by {nice_dim}"
+    filterable = dim in ("region", "category", "sub_category", "segment", "state", "ship_mode")
+    focus = first if order == "ASC" else df.iloc[-1]
     return Result(
         "comparison", headline, facts=facts, table=df,
         chart=charts.bar(df, dim, "value", metric),
-        sql=[show_sql(sql, params), show_sql(total_sql, params)], notes=notes,
-        next_questions=[f"Why is {label.lower()} low in {last[dim]}?" if dim in ("region", "category", "segment")
-                        else "Why is profit low in Tables?",
-                        f"Show {label.lower()} trend for {first[dim]}" if dim in ("region", "category", "segment")
+        sql=sqls, notes=notes,
+        next_questions=[f"Why is profit low in {focus[dim]}?" if filterable else "Does discount affect profit?",
+                        f"Show monthly {label.lower()} for {first[dim]}" if filterable
                         else f"Show monthly {label.lower()}",
-                        "Does discount affect profit?"],
+                        "Does discount affect profit?" if filterable else f"Compare {label.lower()} by region"],
     )
 
 
@@ -285,6 +319,9 @@ ORDER BY value ASC"""
         df = run(conn, sql, params)
         sqls.append(show_sql(sql, params))
         if len(df) < 2:
+            if len(df) == 1:          # e.g. a state lies in one region: nothing to compare, go one level down
+                filters[level] = df.iloc[0][level]
+                continue
             break
         worst = df.iloc[0]
         avg_other = df["value"].iloc[1:].mean()

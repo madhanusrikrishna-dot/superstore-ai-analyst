@@ -63,6 +63,24 @@ check("top 10 rows", len(r.table) == 10, len(r.table))
 check("Copiers first = 55,617.82", r.table.iloc[0]["sub_category"] == "Copiers" and round(r.table.iloc[0]["value"], 2) == 55617.82,
       r.table.iloc[0].to_dict())
 
+p = {"q_type": "comparison", "metric": "profit", "dimension": "state", "order": "asc", "top_n": 1,
+     "period": "month", "horizon": 3, "x_column": "discount", "y_column": "profit", "filters": {"year": "2017"}}
+r = recipes.comparison(conn, p)
+f = dict(r.facts)
+check("2017 state with biggest loss = Texas -8,838.50",
+      r.table.iloc[0]["state"] == "Texas" and round(r.table.iloc[0]["value"], 2) == -8838.50, r.table.iloc[0].to_dict())
+check("top 1 still shows 5 rows for context", len(r.table) == 5, len(r.table))
+check("losing states counted across all 47 (9), not just rows shown", f.get("Losing money", "").startswith("9 of 47"),
+      f.get("Losing money"))
+check("next question is about Texas", r.next_questions[0] == "Why is profit low in Texas?", r.next_questions)
+
+d = recipes.diagnostic(conn, {**p, "q_type": "diagnostic", "filters": {"state": "Texas", "year": "2017"}})
+check("diagnostic works inside one state (Texas → Office Supplies → Binders)",
+      dict(d.facts).get("Drill-down path") == "Texas → Office Supplies → Binders", d.headline)
+t = recipes.trend(conn, {**p, "q_type": "trend", "dimension": "none", "top_n": 0, "filters": {"state": "Texas"}})
+check("trend of a loss uses $ differences, not crazy % (Texas)",
+      "%" not in dict(t.facts)["Weakest month vs same month last year"], dict(t.facts))
+
 print("Q4 Diagnostic")
 p, r = ask("Why is profit low in the Central region?")
 check("routed as diagnostic", p["q_type"] == "diagnostic", p["q_type"])

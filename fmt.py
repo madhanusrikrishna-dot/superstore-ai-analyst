@@ -36,10 +36,21 @@ def value(metric: str, v: float) -> str:
     return money(v)
 
 
+def growth(old: float, new: float) -> float:
+    """% change that keeps the right direction when the old value is negative (e.g. a loss shrinking)."""
+    if not old or (isinstance(old, float) and math.isnan(old)):
+        return float("nan")
+    return (new - old) / abs(old)
+
+
 def change(metric: str, old: float, new: float) -> str:
-    """Change between two values: % for normal metrics, percentage points for ratios."""
+    """Change between two values: % for normal metrics, percentage points for ratios.
+    When a value is a loss, % change is confusing, so the money difference is shown instead."""
     if metric in ("margin", "discount"):
         return f"{(new - old) * 100:+.1f} pts"
+    if old < 0 or new < 0:
+        diff = new - old
+        return ("+" if diff >= 0 else "") + money(diff)
     if not old:
         return "—"
-    return pct(new / old - 1, signed=True)
+    return pct(growth(old, new), signed=True)

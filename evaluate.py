@@ -44,6 +44,8 @@ CASES = [
     ("Compare sales across customer segments", {"q_type": "comparison", "metric": "sales", "dimension": "segment", "filters": {}}, None),
     ("Which ship mode brings the highest sales?",
      {"q_type": "comparison", "dimension": "ship_mode", "order": "desc", "filters": {}}, None),
+    ("which state lost the most money in 2017?",
+     {"q_type": "comparison", "metric": "profit", "dimension": "state", "order": "asc", "filters": {"year": "2017"}}, None),
     ("Top 3 sub-categories by sales in the East region",
      {"q_type": "comparison", "dimension": "sub_category", "top_n": 3, "filters": {"region": "East"}}, None),
     # Q4 Diagnostic

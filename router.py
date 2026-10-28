@@ -179,6 +179,11 @@ def keyword_route(question: str) -> dict:
             if not (m == "discount" and raw["q_type"] == "correlation"):
                 raw["metric"] = m
                 break
+    # "lost money", "losing", "loss" mean profit, lowest first; "makes/earns money", "profitable" mean profit
+    loss_words = re.search(r"\b(lost|lose|loses|losing|loss|losses)\b", q)
+    if loss_words or re.search(r"\b(profitable|earns?|makes? (the most )?money)\b", q):
+        if raw["metric"] == "sales" and "sales" not in q:
+            raw["metric"] = "profit"
     if raw["q_type"] == "correlation":
         found = sorted((q.find(c), c) for c in ["discount", "quantity", "sales", "profit"] if c in q)
         if len(found) >= 2:
@@ -199,7 +204,7 @@ def keyword_route(question: str) -> dict:
         raw["period"] = "year"
     if "quarter" in q:
         raw["period"] = "quarter"
-    if re.search(r"\b(lowest|worst|least|bottom|smallest)\b", q):
+    if re.search(r"\b(lowest|worst|least|bottom|smallest)\b", q) or (loss_words and raw["q_type"] == "comparison"):
         raw["order"] = "asc"
     n = re.search(r"\b(top|bottom)\s+(\d+)", q)
     if n:
