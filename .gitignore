@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+# dataset: download from Kaggle (Superstore), not redistributed here
+*.csv
+.streamlit/
