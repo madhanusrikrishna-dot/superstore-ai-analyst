@@ -53,6 +53,8 @@ ROUTER_SCHEMA = {
 EXAMPLES = [
     ("What was our revenue last year in 2016?", {"q_type": "descriptive", "metric": "sales", "filters": {"year": "2016"}}),
     ("How many orders did the Consumer segment place?", {"q_type": "descriptive", "metric": "orders", "filters": {"segment": "Consumer"}}),
+    ("How is the West region performing?", {"q_type": "descriptive", "metric": "sales", "dimension": "none", "top_n": 0, "filters": {"region": "West"}}),
+    ("How are Phones doing in 2015?", {"q_type": "descriptive", "metric": "sales", "dimension": "none", "top_n": 0, "filters": {"sub_category": "Phones", "year": "2015"}}),
     ("Plot profit for each year", {"q_type": "trend", "metric": "profit", "period": "year"}),
     ("Monthly quantity sold in the South in 2016", {"q_type": "trend", "metric": "quantity", "period": "month", "filters": {"region": "South", "year": "2016"}}),
     ("Rank the regions by profit margin", {"q_type": "comparison", "metric": "margin", "dimension": "region", "order": "desc"}),

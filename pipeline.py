@@ -29,6 +29,17 @@ def understand(question: str, df: pd.DataFrame, previous: dict | None = None, mo
     if params["q_type"] == "other" and params.get("clear", True) and previous and len(question.split()) <= 6:
         params = {**previous, "filters": dict(previous["filters"]), "clear": True, "clarify_options": []}
         source += " + follow-up"
+    # "How is X doing / performing?" is a health check (Q1), not a ranking
+    q = question.lower()
+    asks_rank = re.search(r"\b(which|top|best|worst|most|least|highest|lowest|bottom|rank|compare|vs|by)\b|\d", q)
+    asks_time = re.search(r"\b(month|monthly|quarter|quarterly|yearly|trend|over time|grow|growing|growth)\b", q)
+    if re.search(r"\bhow (is|are|was|were)\b.*\b(doing|performing|perform|going)\b", q) and not asks_rank \
+            and not asks_time and params["q_type"] in ("comparison", "trend", "other"):
+        params.update(q_type="descriptive", dimension="none", top_n=0)
+        source += " + health-check rule"
+    # a "top N" the question never asked for is dropped
+    if params["q_type"] == "comparison" and params["top_n"] and not asks_rank:
+        params["top_n"] = 0
     # values written in the question always win over what the AI filled in
     params["filters"].update(find_filter_values(question, df))
     params["filters"], warnings = normalize_filters(params["filters"], df)

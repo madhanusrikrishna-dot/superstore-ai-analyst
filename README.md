@@ -52,8 +52,8 @@ Put `Sample - Superstore.csv` (Kaggle Superstore dataset) in the same folder.
 
 Two test suites:
 ```
-python test_recipes.py     # 44 checks: every recipe vs numbers verified by hand in SQL (no AI needed)
-python evaluate.py         # 33 real questions through the real AI: question type, filters,
+python test_recipes.py     # 46 checks: every recipe vs numbers verified by hand in SQL (no AI needed)
+python evaluate.py         # 34 real questions through the real AI: question type, filters,
                            # calculation, and "no invented numbers" in the explanation
 ```
 `evaluate.py` writes `eval_report.md` with the score per question type and every failure.
@@ -72,7 +72,7 @@ python evaluate.py         # 33 real questions through the real AI: question typ
 | `data.py` | Loads the CSV into SQLite; allowed columns |
 | `fmt.py` | Number formatting |
 | `business_notes.md` | Business context the AI reads |
-| `test_recipes.py` | 44 checks against hand-verified SQL results |
+| `test_recipes.py` | 46 checks against hand-verified SQL results |
 
 ## Limits
 

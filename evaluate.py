@@ -30,6 +30,8 @@ CASES = [
     ("Give me a summary of the Technology category", {"q_type": "descriptive", "filters": {"category": "Technology"}}, None),
     ("What is the overall profit margin for the Corporate segment?",
      {"q_type": "descriptive", "metric": "margin", "filters": {"segment": "Corporate"}}, None),
+    ("How is the Consumer segment doing?",
+     {"q_type": "descriptive", "top_n": 0, "filters": {"segment": "Consumer"}}, None),
     # Q2 Trend
     ("How did profit change month by month in 2015?",
      {"q_type": "trend", "metric": "profit", "period": "month", "filters": {"year": "2015"}}, None),

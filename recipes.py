@@ -67,12 +67,26 @@ FROM superstore
     ]
     table = pd.DataFrame([{**row.to_dict(), "margin": round(margin, 4), "aov": round(aov, 2)}])
     notes = []
+    sqls = [show_sql(sql, params)]
+    headline = f"{scope_text(p['filters'])}: {fmt.money(row['sales'])} in sales, profit margin {fmt.pct(margin)}"
+    # "how is X doing?" needs a benchmark: the whole company over the same years
+    if any(k != "year" for k in p["filters"]):
+        base_filters = {k: v for k, v in p["filters"].items() if k == "year"}
+        bw, bp = where_clause(base_filters)
+        base_sql = f"SELECT SUM(sales) AS sales, SUM(profit) AS profit FROM superstore {bw}"
+        base = run(conn, base_sql, bp).iloc[0]
+        base_margin = base["profit"] / base["sales"]
+        facts.append(("Share of company sales", fmt.pct(row["sales"] / base["sales"])))
+        facts.append(("Company-wide margin, same years", fmt.pct(base_margin)))
+        sqls.append(show_sql(base_sql, bp))
+        word = "above" if margin > base_margin else "below"
+        headline += f" ({word} the company's {fmt.pct(base_margin)})"
     if row["avg_discount"] > margin:
         notes.append("Average discount is higher than the profit margin. Discounts may be eating profit (check with a correlation question).")
     return Result(
         "descriptive",
-        f"{scope_text(p['filters'])}: {fmt.money(row['sales'])} in sales at a {fmt.pct(margin)} profit margin",
-        facts=facts, table=table, sql=[show_sql(sql, params)], notes=notes, kpi_cards=True,
+        headline,
+        facts=facts, table=table, sql=sqls, notes=notes, kpi_cards=True,
         next_questions=["Show monthly sales trend", "Which region has the lowest profit?",
                         "Does discount affect profit?"],
     )

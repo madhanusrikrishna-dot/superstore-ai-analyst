@@ -30,6 +30,7 @@ Rules:
 - Keep each number's meaning from its label. Example: "Texas loss compared with total profit: 9.5%" means
   the loss equals 9.5% of total profit, NOT that Texas made 9.5% of the profit. Call a state a state,
   a region a region.
+- Words must match the numbers: "majority" or "most" only for more than 50%; "slight" only for under 5%.
 - Write exactly two short parts:
   **Why it matters:** 2 sentences on what this means for the business.
   **Suggested action:** 1 sentence with a concrete next step.

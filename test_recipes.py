@@ -85,6 +85,14 @@ import pipeline
 check("suggested next questions keep the year (2017)",
       pipeline.keep_year(["Why is profit low in Texas?"], {"year": "2017"}) == ["Why is profit low in Texas in 2017?"])
 
+p_h, _, _ = pipeline.understand("How is the Consumer segment doing?", df)
+check("'How is Consumer doing?' is a health check (Q1), not a ranking",
+      p_h["q_type"] == "descriptive" and p_h["top_n"] == 0 and p_h["filters"] == {"segment": "Consumer"}, p_h)
+r_h = recipes.descriptive(conn, p_h)
+check("health check compares with the company margin (11.5% vs 12.5%)",
+      dict(r_h.facts).get("Company-wide margin, same years") == "12.5%" and dict(r_h.facts)["Profit margin"] == "11.5%",
+      r_h.facts)
+
 print("Q4 Diagnostic")
 p, r = ask("Why is profit low in the Central region?")
 check("routed as diagnostic", p["q_type"] == "diagnostic", p["q_type"])
