@@ -10,6 +10,12 @@ do the analysis, so the numbers are always calculated, never guessed.
 
 
 
+https://github.com/user-attachments/assets/8e92422e-84da-4fc7-b069-6c6c3f2fe973
+
+
+
+
+
 **"Why is profit low in Texas in 2017?"** drills down region → category → sub-category and finds the cause:
 ![Diagnostic answer](docs/diagnostic.png)
 
