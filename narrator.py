@@ -30,6 +30,8 @@ Rules:
 - Keep each number's meaning from its label. Example: "Texas loss compared with total profit: 9.5%" means
   the loss equals 9.5% of total profit, NOT that Texas made 9.5% of the profit. Call a state a state,
   a region a region.
+- A company-wide number is an average to compare with, NOT a target. A "change" number is a difference,
+  not the value of that period: never describe a change as the period's profit or loss.
 - Words must match the numbers: "majority" or "most" only for more than 50%; "slight" only for under 5%.
 - Write exactly two short parts:
   **Why it matters:** 2 sentences on what this means for the business.

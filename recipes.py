@@ -173,7 +173,7 @@ ORDER BY period"""
         verb = "improved" if (verb == "grew" and min(first_b, last_b) < 0) else verb
         headline = (f"{label} {verb} {fmt.change(metric, first_b, last_b).lstrip('+-')} from the first {unit} "
                     f"({df['period'].iloc[0]} to {df['period'].iloc[block - 1]}) to the last {unit}; "
-                    f"busiest {period} {peak['period']}")
+                    f"{'busiest' if metric in ('sales', 'orders', 'quantity', 'customers') else 'best'} {period} {peak['period']}")
         facts[2] = (f"Change, first {unit} → last {unit}", fmt.change(metric, first_b, last_b))
 
     # ---- seasonality: never judge a month/quarter only against the one before it
@@ -193,8 +193,10 @@ ORDER BY period"""
                     return ("+" if c >= 0 else "") + fmt.value(metric, c)
                 return fmt.pct(c, signed=True)
 
-            facts[5] = (f"Weakest {period} vs same {period} last year", f"{w['period']} · {yoy_text(w)}")
-            facts.insert(6, (f"Strongest {period} vs same {period} last year", f"{b['period']} · {yoy_text(b)}"))
+            facts[5] = (f"Biggest fall vs same {period} last year (a change, not the {period}'s value)",
+                        f"{w['period']} · {yoy_text(w)}")
+            facts.insert(6, (f"Biggest rise vs same {period} last year (a change, not the {period}'s value)",
+                             f"{b['period']} · {yoy_text(b)}"))
         else:
             facts[5] = (f"Biggest drop vs {period} before (may be seasonal)", facts[5][1])
         if "year" in p["filters"]:
@@ -294,15 +296,17 @@ ORDER BY value ASC"""
     nice_dim = dim.replace("_", "-")
     headline = f"{first[dim]} has the {word} {label.lower()} ({fmt.value(metric, first['value'])}) by {nice_dim}"
     filterable = dim in ("region", "category", "sub_category", "segment", "state", "ship_mode")
-    focus = first if order == "ASC" else df.iloc[-1]
     return Result(
         "comparison", headline, facts=facts, table=df,
         chart=charts.bar(df, dim, "value", metric),
         sql=sqls, notes=notes,
-        next_questions=[f"Why is profit low in {focus[dim]}?" if filterable else "Does discount affect profit?",
-                        f"Show monthly {label.lower()} for {first[dim]}" if filterable
-                        else f"Show monthly {label.lower()}",
-                        "Does discount affect profit?" if filterable else f"Compare {label.lower()} by region"],
+        next_questions=([f"Why is profit low in {first[dim]}?", f"Show monthly {label.lower()} for {first[dim]}",
+                         "Does discount affect profit?"] if filterable and order == "ASC" else
+                        [f"Show monthly {label.lower()} for {first[dim]}",
+                         f"Compare profit by {nice_dim}" if metric != "profit" else f"Compare sales by {nice_dim}",
+                         "Does discount affect profit?"] if filterable else
+                        [f"Show monthly {label.lower()}", f"Compare {label.lower()} by region",
+                         "Does discount affect profit?"]),
     )
 
 
@@ -588,17 +592,28 @@ ORDER BY month"""
     joined = pd.concat([hist.tail(1).assign(kind="Forecast"), fut])   # connect the dashed line
     chart_df = pd.concat([hist, joined])
 
+    total = sum(v for _, v in pred)
+    h = len(pred)
     facts = [("Method", "Same month last year × recent growth"),
              ("Growth used (last 12 months vs previous 12)", fmt.pct(growth, signed=True)),
-             ("Backtest error on last 3 known months", fmt.pct(mape))]
+             ("Each forecast month vs the same month last year", fmt.pct(growth, signed=True) + " (by this method)"),
+             ("Backtest error on last 3 known months", fmt.pct(mape)),
+             (f"Forecast total, next {h} months", fmt.value(metric, total))]
     for m, v in pred:
         facts.append((f"Forecast {m}", fmt.value(metric, v)))
     table = fut[["month", "value"]].rename(columns={"value": f"forecast_{metric}"}).round(2)
+    headline = (f"{label} forecast, next {h} months: about {fmt.value(metric, total)} in total "
+                f"({fmt.pct(growth, signed=True)} vs the same months last year)")
+    extra_notes = []
+    if not np.isnan(mape) and mape > 0.5:
+        headline = f"Rough estimate only (backtest error {fmt.pct(mape)}): " + headline
+        extra_notes.append(f"Monthly {label.lower()} swings too much to forecast single months reliably. "
+                           f"Trust the {h}-month total more than any one month.")
     return Result(
-        "forecast", f"{label} forecast for {pred[0][0]}: about {fmt.value(metric, pred[0][1])}",
+        "forecast", headline,
         facts=facts, table=table, chart=charts.forecast_line(chart_df, metric, title=f"{label}: last 24 months + forecast"),
         sql=[show_sql(sql, params)],
-        notes=["A forecast is an estimate, not a promise. Expect the real number to differ by about the backtest error.",
+        notes=extra_notes + ["A forecast is an estimate, not a promise. Expect the real number to differ by about the backtest error.",
                "Assumes next year repeats this year's seasonal pattern at the recent growth rate."],
         next_questions=[f"Show monthly {label.lower()} trend", "Which region grew fastest?", "Total sales and profit"],
     )

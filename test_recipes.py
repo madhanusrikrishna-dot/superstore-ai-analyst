@@ -79,7 +79,7 @@ check("diagnostic works inside one state (Texas → Office Supplies → Binders)
       dict(d.facts).get("Drill-down path") == "Texas → Office Supplies → Binders", d.headline)
 t = recipes.trend(conn, {**p, "q_type": "trend", "dimension": "none", "top_n": 0, "filters": {"state": "Texas"}})
 check("trend of a loss uses $ differences, not crazy % (Texas)",
-      "%" not in dict(t.facts)["Weakest month vs same month last year"], dict(t.facts))
+      "%" not in next(v for k, v in t.facts if k.startswith("Biggest fall vs same month")), dict(t.facts))
 
 import pipeline
 check("suggested next questions keep the year (2017)",

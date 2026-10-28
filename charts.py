@@ -22,6 +22,12 @@ def _axis_format(metric: str) -> str:
     return "$,.0f"
 
 
+def _bar_domain(values: pd.Series) -> list:
+    """Start at 0 for all-positive data; leave ~15% room at the ends for the value labels."""
+    lo, hi = float(values.min()), float(values.max())
+    return [min(0.0, lo * 1.15), max(0.0, hi * 1.15)]
+
+
 def bar(df: pd.DataFrame, label: str, value: str, metric: str, title: str = "",
         highlight: str | None = None) -> alt.Chart:
     """Horizontal bars in the table's order; losses red; one highlighted bar."""
@@ -37,7 +43,7 @@ def bar(df: pd.DataFrame, label: str, value: str, metric: str, title: str = "",
     base = alt.Chart(data, title=title).encode(
         y=alt.Y(f"{label}:N", sort=order, title=None, axis=alt.Axis(labelLimit=220)),
         x=alt.X(f"{value}:Q", title=None, axis=alt.Axis(format=_axis_format(metric), tickCount=8),
-                scale=alt.Scale(nice=True, padding=40)),
+                scale=alt.Scale(domain=_bar_domain(data[value]), nice=True)),
         tooltip=[alt.Tooltip(f"{label}:N"), alt.Tooltip(f"{value}:Q", format=_axis_format(metric))],
     )
     bars = base.mark_bar(cornerRadiusEnd=3).encode(color=color)
