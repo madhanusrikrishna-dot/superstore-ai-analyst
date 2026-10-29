@@ -264,7 +264,10 @@ with st.sidebar:
     st.caption("Funnel and A/B test questions need data Superstore doesn't have; the app says so.")
     st.markdown("[Code, tests and demo on GitHub](https://github.com/madhanusrikrishna-dot/superstore-ai-analyst)")
 
-if not st.session_state.history and not st.session_state.pending and not st.session_state.edit:
+# read the chat box first (it always sits at the bottom), so the welcome screen hides as soon as you ask
+typed = st.chat_input("Ask about sales, profit, customers…")
+
+if not st.session_state.history and not st.session_state.pending and not st.session_state.edit and not typed:
     st.markdown('<div class="hero"><h1>Ask your sales data a question.</h1>'
                 f"<p>Superstore sales, {len(df):,} order lines from 2014 to 2017. The AI reads your question; "
                 "tested code does every calculation, and each answer shows its SQL.</p></div>",
@@ -283,7 +286,6 @@ for i, entry in enumerate(st.session_state.history):
     with st.chat_message("assistant"):
         show(entry, i)
 
-typed = st.chat_input("Ask about sales, profit, customers…")
 question = typed or st.session_state.pending
 st.session_state.pending = None
 edit = st.session_state.edit
