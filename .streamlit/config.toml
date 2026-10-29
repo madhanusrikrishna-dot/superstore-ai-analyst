@@ -1,0 +1,13 @@
+# Look and feel of the app (Streamlit reads this automatically)
+[theme]
+base = "light"
+primaryColor = "#0F7B6C"          # profit teal: buttons, links, focus
+backgroundColor = "#FFFFFF"
+secondaryBackgroundColor = "#F2F5F4"
+textColor = "#1D2B36"             # slate ink
+
+[client]
+toolbarMode = "viewer"            # hides the developer "Deploy" button for visitors
+
+[browser]
+gatherUsageStats = false
