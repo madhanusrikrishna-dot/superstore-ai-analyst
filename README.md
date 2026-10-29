@@ -86,6 +86,9 @@ python -m streamlit run app.py
 
 Put `Sample - Superstore.csv` (Kaggle Superstore dataset) in the same folder.
 
+**Live demo link (Windows):** double-click `start_demo.bat`. It starts the app and a temporary public link
+(Cloudflare quick tunnel, needs `cloudflared`). Close both windows to stop.
+
 Two test suites:
 ```
 python test_recipes.py     # 46 checks: every recipe vs numbers verified by hand in SQL (no AI needed)
