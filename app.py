@@ -10,6 +10,9 @@ How it answers a question:
 Run:  python -m streamlit run app.py
 """
 
+import html
+import re
+
 import streamlit as st
 
 import pipeline
@@ -18,6 +21,54 @@ from data import DIMENSIONS, METRIC_LABELS, METRICS, load
 from router import Q_TYPES
 
 st.set_page_config(page_title="Superstore AI Analyst", page_icon="📊", layout="wide")
+
+STYLE = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap');
+html, body, p, li, h1, h2, h3, h4, label, input, textarea, td, th,
+[data-testid="stMetricValue"], [data-testid="stMetricLabel"], [data-testid="stMetricDelta"] {
+  font-family: 'Barlow', sans-serif; }
+[data-testid="stMetricValue"], .stMarkdown td { font-variant-numeric: tabular-nums; }
+.block-container { padding-top: 2.4rem; max-width: 1180px; }
+
+/* thin white outlines instead of filled boxes */
+.stButton button { background: transparent; border: 1px solid rgba(255,255,255,.45); border-radius: 2px;
+                   height: auto; min-height: 2.6rem; justify-content: flex-start; }
+.stButton button:hover { border-color: #FFFFFF; background: rgba(255,255,255,.06); }
+.stButton button p { white-space: normal; text-align: left; line-height: 1.3; color: #F2F4F5; }
+[data-testid="stExpander"] details { border: 1px solid rgba(255,255,255,.25); border-radius: 2px; }
+[data-testid="stChatInput"] { border-radius: 2px; }
+
+/* the welcome screen: one big statement, like a launch page */
+.hero h1 { font-family: 'Barlow Semi Condensed', sans-serif; font-size: 3.4rem; line-height: 1.0;
+           font-weight: 700; text-transform: uppercase; letter-spacing: .01em; color: #FFFFFF; margin: 0 0 .9rem; }
+.hero p { font-size: 1.08rem; color: #9AA4AD; max-width: 60ch; margin: 0 0 2rem; }
+.hero { border-bottom: 1px solid rgba(255,255,255,.18); margin-bottom: 1.6rem; padding-bottom: .4rem; }
+.group-title { font-weight: 600; color: #FFFFFF; margin: .2rem 0 .5rem; }
+
+/* "I understood" = a white price tag (monochrome) */
+.tag { display: inline-flex; align-items: center; gap: .55rem; background: #FFFFFF; color: #000000;
+       padding: .38rem .9rem .38rem 1.35rem; border-radius: 2px 8px 8px 2px; position: relative;
+       font-size: .95rem; margin: .1rem 0 .3rem; }
+.tag::before { content: ""; position: absolute; left: .5rem; top: 50%; width: .42rem; height: .42rem;
+               margin-top: -.21rem; border-radius: 50%; background: #000000; }
+.tag b { font-weight: 600; }
+.tag-source { font-size: .82rem; color: #9AA4AD; margin: 0 0 .8rem; }
+
+/* answer headline and key numbers */
+[data-testid="stChatMessage"] h3 { font-family: 'Barlow Semi Condensed', sans-serif; font-size: 1.55rem;
+                                    line-height: 1.25; font-weight: 600; color: #FFFFFF; }
+[data-testid="stMetric"] { background: transparent; border: 1px solid rgba(255,255,255,.22); border-radius: 2px;
+                           padding: .7rem .9rem; }
+[data-testid="stMetricLabel"] p { color: #9AA4AD; font-size: .88rem; }
+[data-testid="stMetricValue"] { color: #FFFFFF; }
+
+/* sidebar */
+[data-testid="stSidebar"] { border-right: 1px solid rgba(255,255,255,.12); }
+.how li { margin-bottom: .35rem; color: #C9D0D5; }
+</style>
+"""
+st.markdown(STYLE, unsafe_allow_html=True)
 
 
 @st.cache_resource
@@ -112,19 +163,32 @@ def show(entry: dict, idx: int):
 
     r: recipes.Result = entry["result"]
     _, _, method = Q_TYPES.get(r.q_type, Q_TYPES["other"])
-    st.info(f"**I understood:** {md(understood_text(entry['params']))}  \n_routed by {entry['source']}_")
+    st.markdown(f'<div class="tag"><b>I understood</b> {html.escape(understood_text(entry["params"]))}</div>'
+                f'<div class="tag-source">Routed by {html.escape(entry["source"])}. Not right? Change it below.</div>',
+                unsafe_allow_html=True)
     st.markdown(f"### {md(r.headline)}")
 
     if r.kpi_cards and r.facts:
+        facts = dict(r.facts)
+        deltas = {}
+        for label, value in r.facts:                 # "Sales vs 2015: +29.5%" -> arrow on the Sales card
+            m = re.match(r"Sales vs (\d{4})", label)
+            if m:
+                deltas["Sales"] = f"{value} vs {m.group(1)}"
+            m = re.match(r"Profit margin in (\d{4})", label)
+            if m and "Profit margin" in facts:
+                pts = float(facts["Profit margin"].rstrip("%")) - float(value.rstrip("%"))
+                deltas["Profit margin"] = f"{pts:+.1f} pts vs {m.group(1)}"
+        shown = [(k, v) for k, v in r.facts if not re.match(r"(Sales vs|Profit margin in) \d{4}", k)]
         cols = st.columns(4)
-        for i, (label, value) in enumerate(r.facts):
-            cols[i % 4].metric(label, value)
+        for i, (label, value) in enumerate(shown):
+            cols[i % 4].metric(label, value, delta=deltas.get(label))
     elif r.facts:
         rows = "\n".join(f"| {md(k)} | **{md(v)}** |" for k, v in r.facts)
         st.markdown("| Key number | Value |\n|---|---|\n" + rows)
 
     if r.chart is not None:
-        st.altair_chart(r.chart, width="stretch")
+        st.altair_chart(r.chart, width="stretch", theme=None)
 
     if entry["narration"]:
         st.markdown(md(entry["narration"]))
@@ -172,32 +236,46 @@ for key, default in (("history", []), ("pending", None), ("edit", None)):
     if key not in st.session_state:
         st.session_state[key] = default
 
+EXAMPLES = {
+    "How are we doing?": ["Total sales and profit in 2017", "How is the West region doing in 2017?"],
+    "What changed?": ["Show monthly sales", "Show quarterly profit for the Furniture category"],
+    "Why?": ["Why is profit low in Texas in 2017?", "Does discount affect profit?"],
+    "Who are our customers?": ["Who are our best customers?", "Do customers come back after their first purchase?"],
+    "What's next?": ["Forecast sales for the next 3 months", "Which state lost the most money in 2017?"],
+}
+
 with st.sidebar:
-    st.header("📊 Superstore AI Analyst")
-    st.caption(f"Model: {pipeline.MODEL} (local, via Ollama)")
-    st.caption(f"Data: {len(df):,} order lines · {df['order_date'].min()[:4]}–{df['order_date'].max()[:4]}")
-    if st.button("Clear chat"):
+    st.markdown("### Superstore AI Analyst")
+    st.markdown('<ol class="how"><li>The AI reads your question and shows what it understood.</li>'
+                "<li>Tested SQL and Python code calculates every number.</li>"
+                "<li>The AI's explanation is checked before you see it.</li></ol>", unsafe_allow_html=True)
+    st.caption(f"Data: Superstore sales, {len(df):,} order lines, "
+               f"{df['order_date'].min()[:4]}–{df['order_date'].max()[:4]}")
+    st.caption(f"Model: {pipeline.MODEL}, running locally with Ollama")
+    if st.button("Clear chat", width="stretch"):
         st.session_state.history = []
         st.rerun()
-    st.subheader("Question types")
-    examples = {
-        "Q1 Descriptive": "Total sales and profit in 2017",
-        "Q2 Trend": "Show monthly sales",
-        "Q3 Comparison": "Which region has the lowest profit?",
-        "Q4 Diagnostic": "Why is profit low in the Central region?",
-        "Q5 Correlation": "Does discount affect profit?",
-        "Q6 Segmentation": "Who are our best customers?",
-        "Q8 Cohort": "Do customers come back after their first purchase?",
-        "Q10 Forecast": "Forecast sales for the next 3 months",
-    }
-    for label, q in examples.items():
-        if st.button(f"{label}: {q}", key=f"ex_{label}", width="stretch"):
-            st.session_state.pending = q
-            st.rerun()
-    st.caption("Q7 Funnel and Q9 A/B test need data Superstore doesn't have; the app will say so.")
+    with st.expander("Example questions"):
+        for group, qs in EXAMPLES.items():
+            for q in qs:
+                if st.button(q, key=f"side_{q}", width="stretch"):
+                    st.session_state.pending = q
+                    st.rerun()
+    st.caption("Funnel and A/B test questions need data Superstore doesn't have; the app says so.")
+    st.markdown("[Code, tests and demo on GitHub](https://github.com/madhanusrikrishna-dot/superstore-ai-analyst)")
 
-st.title("Superstore AI Analyst")
-st.caption("Ask a business question. The AI picks the question type; fixed methods in code do the maths.")
+if not st.session_state.history and not st.session_state.pending and not st.session_state.edit:
+    st.markdown('<div class="hero"><h1>Ask your sales data a question.</h1>'
+                f"<p>Superstore sales, {len(df):,} order lines from 2014 to 2017. The AI reads your question; "
+                "tested code does every calculation, and each answer shows its SQL.</p></div>",
+                unsafe_allow_html=True)
+    cols = st.columns(len(EXAMPLES))
+    for col, (group, qs) in zip(cols, EXAMPLES.items()):
+        col.markdown(f'<div class="group-title">{group}</div>', unsafe_allow_html=True)
+        for q in qs:
+            if col.button(q, key=f"hero_{q}", width="stretch"):
+                st.session_state.pending = q
+                st.rerun()
 
 for i, entry in enumerate(st.session_state.history):
     with st.chat_message("user"):

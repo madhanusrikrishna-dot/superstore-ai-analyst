@@ -1,0 +1,13 @@
+# Look and feel of the app (Streamlit reads this automatically): dark, monochrome
+[theme]
+base = "dark"
+primaryColor = "#FFFFFF"
+backgroundColor = "#000000"
+secondaryBackgroundColor = "#111315"
+textColor = "#F2F4F5"
+
+[client]
+toolbarMode = "viewer"            # hides the developer "Deploy" button for visitors
+
+[browser]
+gatherUsageStats = false

@@ -7,11 +7,27 @@ charts.py - one chart style per question type, so the chart always fits the ques
 import altair as alt
 import pandas as pd
 
-BLUE = "#4c9aff"
-RED = "#e5534b"
-GREEN = "#3fb950"
-GREY = "#8b949e"
-ORANGE = "#f0883e"
+# one palette for every chart (matches .streamlit/config.toml, dark theme)
+BLUE = "#7FB2E5"     # main series: soft blue, readable on black
+RED = "#FF6B5B"      # losses
+GREEN = "#4FD1A5"    # profit
+GREY = "#9AA4AD"     # labels
+ORANGE = "#F2C94C"   # highlight / forecast
+FONT = "Barlow, Helvetica, Arial, sans-serif"
+
+
+@alt.theme.register("superstore", enable=True)
+def _theme():
+    return {"config": {
+        "font": FONT,
+        "view": {"stroke": None},
+        "axis": {"labelColor": GREY, "titleColor": GREY, "gridColor": "#22272B", "domainColor": "#3A4248",
+                 "labelFontSize": 12, "titleFontWeight": 500},
+        "legend": {"labelColor": GREY, "titleColor": GREY, "labelFont": FONT, "titleFont": FONT},
+        "text": {"font": FONT, "fontSize": 11},
+        "title": {"color": "#F2F4F5", "fontSize": 14, "fontWeight": 600, "anchor": "start"},
+    }}
+
 
 
 def _axis_format(metric: str) -> str:
