@@ -4,7 +4,7 @@ Ask business questions about the Superstore sales data in plain English. A local
 (via Ollama, free, no API key) decides **what type of question** it is, then **fixed methods in code**
 do the analysis, so the numbers are always calculated, never guessed.
 
-**Results:** 46/46 recipe checks · 7,131 wording-rule checks on 898 answers · 36/36 end-to-end questions with the real model (v1.1) · every answer shows its SQL.
+**Results:** 46/46 recipe checks · 7,140 wording-rule checks on 898 answers · 36/36 end-to-end questions with the real model (v1.1) · every answer shows its SQL.
 
 ## See it work
 
@@ -75,7 +75,7 @@ So in this version:
 ## Tested like a real release
 
 1. **Recipe tests** (`test_recipes.py`): every method checked against numbers verified by hand in SQL.
-2. **Rule tests** (`test_rules.py`): 7,131 checks on 898 answers (every question type × years, regions,
+2. **Rule tests** (`test_rules.py`): 7,140 checks on 898 answers (every question type × years, regions,
    products, states) that results are *explained* honestly: every "share of" label says of what, no raw column
    names, headlines lead with the biggest $ finding, no "healthy/low" without a comparison, next questions keep
    the same scope. Breaking a rule on purpose makes these tests fail.
@@ -121,7 +121,7 @@ Put `Sample - Superstore.csv` (Kaggle Superstore dataset) in the same folder.
 Three test suites:
 ```
 python test_recipes.py     # 46 checks: every recipe vs numbers verified by hand in SQL (no AI needed)
-python test_rules.py       # 7,131 checks: answers are explained honestly on 898 answers (no AI needed)
+python test_rules.py       # 7,140 checks: answers are explained honestly on 898 answers (no AI needed)
 python evaluate.py         # 36 real questions through the real AI: question type, filters,
                            # calculation, and "no invented numbers" in the explanation
 ```
