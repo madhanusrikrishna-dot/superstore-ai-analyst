@@ -50,6 +50,19 @@ Question
 | Q9 Experiment | — | Not possible: no A/B groups in Superstore |
 | Q10 Forecast | Forecast sales for the next 3 months | Same month last year × growth, with backtest |
 
+## AI writes, code checks
+
+The AI's explanation is never trusted blindly. Before it is shown, `verify.py` checks it:
+
+1. **Numbers:** every number must exist in the key numbers (rounding like $1.2M for $1.16M is fine)
+2. **Judging:** words like "healthy", "low", "strong" only when the answer shows a comparison
+3. **Reasons:** "due to higher discounts" must match the direction in the data
+4. **Size:** "majority" only above 50%
+
+If it fails, the AI gets one retry with the problems listed. If that fails too, the app shows a plain
+explanation written by code, marked as such. **A wrong sentence never reaches the screen;** the worst case is
+a plainer one. The checker is tested on real wrong explanations the model produced during user testing.
+
 ## Why it's built this way
 
 The first version let the AI write all SQL and explanations. Testing showed it wrote good SQL but
@@ -125,6 +138,7 @@ python evaluate.py         # 36 real questions through the real AI: question typ
 | `recipes.py` | One method per question type (SQL + pandas) |
 | `charts.py` | Chart per question type (Altair) |
 | `narrator.py` | Plain-English explanation (AI) |
+| `verify.py` | Checks every AI explanation before it is shown; code-written fallback |
 | `data.py` | Loads the CSV into SQLite; allowed columns |
 | `fmt.py` | Number formatting |
 | `business_notes.md` | Business context the AI reads |

@@ -14,6 +14,7 @@ import re
 import pandas as pd
 
 import narrator
+import verify
 import recipes
 from data import find_filter_values, normalize_filters, run
 from router import ai_route
@@ -66,13 +67,22 @@ def compute(conn, params: dict, question: str, model: str = MODEL) -> recipes.Re
 
 
 def narrate(question: str, result: recipes.Result, params: dict, model: str = MODEL) -> str:
+    """AI writes, code checks: an explanation is shown only if it passes verify.problems().
+    One retry with the problems listed; after that, a plain explanation written by code."""
     if not result.facts:
         return ""
-    try:
-        return narrator.explain(question, result.headline, result.facts, result.notes, model,
-                                scope=recipes.scope_text(params["filters"]))
-    except Exception:
-        return "_AI explanation unavailable (is Ollama running?). The numbers above come from code and are still valid._"
+    scope = recipes.scope_text(params["filters"])
+    fix = ""
+    for _ in range(2):
+        try:
+            text = narrator.explain(question, result.headline, result.facts, result.notes, model, scope=scope, fix=fix)
+        except Exception:
+            return "_AI explanation unavailable (is Ollama running?). The numbers above come from code and are still valid._"
+        found = verify.problems(text, question, result.headline, result.facts, result.notes)
+        if not found:
+            return text
+        fix = "; ".join(found)
+    return verify.fallback(result.headline, result.notes, result.next_questions)
 
 
 def answer(conn, df, question: str, previous: dict | None = None, params: dict | None = None,

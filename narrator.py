@@ -14,7 +14,8 @@ def business_notes() -> str:
     return NOTES_FILE.read_text(encoding="utf-8") if NOTES_FILE.exists() else ""
 
 
-def explain(question: str, headline: str, facts: list, notes: list, model: str, scope: str = "") -> str:
+def explain(question: str, headline: str, facts: list, notes: list, model: str, scope: str = "",
+            fix: str = "") -> str:
     import ollama
 
     facts_text = "\n".join(f"- {k}: {v}" for k, v in facts)
@@ -45,6 +46,8 @@ Rules:
 - Plain English, no SQL, no bullet lists."""
     user = (f"Question: {question}\nScope of the numbers: {scope}\nHeadline: {headline}\n"
             f"Key numbers:\n{facts_text}\nNotes:\n{notes_text}")
+    if fix:   # second try after the automatic check rejected the first one
+        user += f"\n\nYour previous explanation was rejected by an automatic check: {fix}\nWrite it again without these problems."
     reply = ollama.chat(model=model, messages=[{"role": "system", "content": system},
                                                {"role": "user", "content": user}],
                         options={"temperature": 0.2})

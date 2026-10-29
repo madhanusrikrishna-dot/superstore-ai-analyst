@@ -21,6 +21,7 @@ from collections import defaultdict
 import pipeline
 from data import load
 from narrator import business_notes
+from verify import FALLBACK_MARK, invented_numbers
 
 # (question, expected form, previous question for follow-ups)
 CASES = [
@@ -87,41 +88,12 @@ CASES = [
      "Which region has the lowest profit?"),
 ]
 
-NUMBER = re.compile(r"[-−]?\$?\d[\d,]*(?:\.\d+)?\s?(?:%|K|M|pts)?", re.IGNORECASE)
-
-
-def numbers_in(text: str) -> set:
-    out = set()
-    for m in NUMBER.findall(text or ""):
-        t = m.replace("$", "").replace(",", "").replace(" ", "").replace("−", "-").lstrip("-").lower()
-        if t:
-            out.add(t)
-    return out
-
-
-def invented_numbers(narration: str, allowed_text: str) -> list:
-    """Numbers in the explanation that the code never produced."""
-    allowed = numbers_in(allowed_text)
-    bad = []
-    for t in numbers_in(narration):
-        plain = re.sub(r"[a-z%]", "", t)
-        try:
-            v = float(plain)
-        except ValueError:
-            continue
-        if t in allowed or plain in {re.sub(r"[a-z%]", "", a) for a in allowed}:
-            continue
-        if v.is_integer() and (v <= 12 or 2014 <= v <= 2018):   # counts like "3 months", years
-            continue
-        bad.append(t)
-    return bad
-
-
 def main():
     quick = "--quick" in sys.argv
     conn, df = load()
     rows, by_type, total_time = [], defaultdict(lambda: [0, 0]), 0.0
     fallback_used = False
+    fallbacks = 0
     print(f"Testing {len(CASES)} questions with model {pipeline.MODEL}{' (quick)' if quick else ''}\n")
 
     for i, (question, expect, previous_q) in enumerate(CASES, 1):
@@ -152,6 +124,8 @@ def main():
                 narration = pipeline.narrate(question, result, params)
                 if narration.startswith("_AI explanation unavailable"):
                     problems.append("AI explanation unavailable")
+                elif FALLBACK_MARK in narration:
+                    fallbacks += 1   # the check caught a bad AI explanation: safe, but counted
                 else:
                     allowed = " ".join([question, headline, business_notes(), " ".join(result.notes),
                                         " ".join(f"{k} {v}" for k, v in result.facts)])
@@ -174,6 +148,9 @@ def main():
     print(f"\n{passed}/{len(rows)} passed ({passed / len(rows):.0%}) in {total_time / 60:.1f} min")
     for t, (ok, n) in by_type.items():
         print(f"  {t:13} {ok}/{n}")
+    if fallbacks:
+        print(f"\nNote: {fallbacks} AI explanation(s) failed the automatic check twice and were replaced by "
+              "a code-written explanation (safe, but plainer).")
     if fallback_used:
         print("\nWARNING: the AI router was not used for some questions (is Ollama running?). "
               "Those results tested the keyword backup, not the AI.")

@@ -130,6 +130,51 @@ check("'Is that good?' asks back instead of repeating the last answer", vague["c
 web, _, _ = pipeline.understand("Did our new website increase sales?", df, east_p)
 check("an A/B question after another answer is not treated as a follow-up", web["q_type"] == "experiment", web)
 
+# ---- "AI writes, code checks": real explanations the AI wrote during user testing (29 Oct 2026)
+import verify  # noqa: E402
+
+east16 = recipes.descriptive(conn, {**base, "q_type": "descriptive", "filters": {"year": "2016", "region": "East"}})
+bad_east = ("**Why it matters:** The East region's profit margin of 11.1% is below the company-wide average of 13.4%. "
+            "This could be due to higher discounts given on orders.\n\n**Suggested action:** Review discounts.")
+check("check catches 'due to higher discounts' when East's discount is lower",
+      any("LOWER" in x for x in verify.problems(bad_east, "and for the East region?", east16.headline,
+                                                  east16.facts, east16.notes)))
+coh = recipes.cohort(conn, {**base, "q_type": "cohort", "filters": {}})
+bad_cohort = ("**Why it matters:** A retention rate this low suggests that a significant portion of new customers "
+              "are not returning.\n\n**Suggested action:** Start a loyalty programme.")
+check("check catches 'low' with nothing to compare", verify.problems(
+    bad_cohort, "Do customers come back?", coh.headline, coh.facts, coh.notes) != [])
+bad_number = "**Why it matters:** Sales were $812.4K, 41.3% of the total.\n\n**Suggested action:** Grow."
+check("check catches invented numbers", any("numbers" in x for x in verify.problems(
+    bad_number, "Total sales in 2016", d16.headline, d16.facts, d16.notes)))
+seg_r = recipes.segmentation(conn, {**base, "q_type": "segmentation", "filters": {}})
+bad_major = "**Why it matters:** At-risk customers are the majority of our sales.\n\n**Suggested action:** Call them."
+check("check catches 'majority' when no share is above 50%", any("majority" in x for x in verify.problems(
+    bad_major, "Who are our best customers?", seg_r.headline, seg_r.facts, seg_r.notes)))
+good = ("**Why it matters:** At risk customers hold 26.4% of sales ($605.7K) but have not bought recently, so a "
+        "big part of past revenue could be lost.\n\n**Suggested action:** Send the 159 at-risk customers a "
+        "win-back offer first.")
+check("a correct explanation passes the check", verify.problems(
+    good, "Who are our best customers?", seg_r.headline, seg_r.facts, seg_r.notes) == [],
+      verify.problems(good, "Who are our best customers?", seg_r.headline, seg_r.facts, seg_r.notes))
+
+# the full loop: AI wrong twice -> code-written explanation, which itself passes every check
+import narrator  # noqa: E402
+
+real_explain = narrator.explain
+narrator.explain = lambda *a, **k: bad_east
+text = pipeline.narrate("and for the East region?", east16, {"filters": {"year": "2016", "region": "East"}})
+narrator.explain = real_explain
+check("after two failed tries the app shows the code-written explanation", verify.FALLBACK_MARK in text, text)
+check("the code-written explanation passes its own checks", verify.problems(
+    text, "and for the East region?", east16.headline, east16.facts, east16.notes) == [], text)
+calls = []
+narrator.explain = lambda *a, **k: (calls.append(k.get("fix")), bad_east if len(calls) == 1 else good)[1]
+text = pipeline.narrate("Who are our best customers?", seg_r, {"filters": {}})
+narrator.explain = real_explain
+check("the retry tells the AI what was wrong", len(calls) == 2 and bool(calls[1]), calls)
+check("a corrected retry is shown (no code fallback needed)", verify.FALLBACK_MARK not in text and "26.4%" in text, text)
+
 print("\n".join(failures[:40]))
 if len(failures) > 40:
     print(f"  ... and {len(failures) - 40} more")
