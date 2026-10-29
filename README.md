@@ -4,7 +4,7 @@ Ask business questions about the Superstore sales data in plain English. A local
 (via Ollama, free, no API key) decides **what type of question** it is, then **fixed methods in code**
 do the analysis, so the numbers are always calculated, never guessed.
 
-**Results:** 46/46 recipe checks · 7,141 wording-rule checks on 898 answers · 36/36 end-to-end questions with the real model (v1.1) · every answer shows its SQL.
+**Results:** 46/46 recipe checks · ~7,000 wording-rule checks on 898 answers · 36/36 end-to-end questions with the real model (v1.1) · every answer shows its SQL.
 
 ## See it work
 
@@ -75,7 +75,7 @@ So in this version:
 ## Tested like a real release
 
 1. **Recipe tests** (`test_recipes.py`): every method checked against numbers verified by hand in SQL.
-2. **Rule tests** (`test_rules.py`): 7,141 checks on 898 answers (every question type × years, regions,
+2. **Rule tests** (`test_rules.py`): about 7,000 checks on 898 answers (every question type × years, regions,
    products, states) that results are *explained* honestly: every "share of" label says of what, no raw column
    names, headlines lead with the biggest $ finding, no "healthy/low" without a comparison, next questions keep
    the same scope. Breaking a rule on purpose makes these tests fail.
@@ -102,6 +102,7 @@ general rules were added (and tested above):
 | How is East doing in 2016? | Lower margin "due to higher discounts" | East discount 14.3% is *lower* than the company's 15.5% | No reason without the numbers to show it |
 | Total sales in 2016 | "Healthy range"; discount % compared with margin % | +29.5% vs 2015; the comparison made no sense | Compare with last year; removed the flawed note |
 | Top 5 products by profit | Top copier drives 16.8% of profit | That profit came from only 3 orders | Flag results from very few orders |
+| Which state has the highest profit margin? | South Carolina, 50% | That 50% came from 1 order; it also kept "Technology, 2017" from the previous question | Ratios from < 10 orders aren't ranked; only real follow-ups reuse the previous question |
 
 ## Run it
 
@@ -121,7 +122,7 @@ Put `Sample - Superstore.csv` (Kaggle Superstore dataset) in the same folder.
 Three test suites:
 ```
 python test_recipes.py     # 46 checks: every recipe vs numbers verified by hand in SQL (no AI needed)
-python test_rules.py       # 7,141 checks: answers are explained honestly on 898 answers (no AI needed)
+python test_rules.py       # ~7,000 checks: answers are explained honestly on 898 answers (no AI needed)
 python evaluate.py         # 36 real questions through the real AI: question type, filters,
                            # calculation, and "no invented numbers" in the explanation
 ```

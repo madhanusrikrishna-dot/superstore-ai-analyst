@@ -84,6 +84,8 @@ CASES = [
     # follow-ups
     ("and for the East region?", {"q_type": "descriptive", "filters": {"year": "2017", "region": "East"}},
      "Total sales in 2017"),
+    ("Which state has the highest profit margin?", {"q_type": "comparison", "metric": "margin", "dimension": "state",
+     "filters": {}}, "How is the Technology category doing in 2017?"),
     ("what about in 2016?", {"q_type": "comparison", "order": "asc", "filters": {"year": "2016"}},
      "Which region has the lowest profit?"),
 ]

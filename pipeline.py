@@ -24,13 +24,14 @@ MODEL = os.environ.get("ANALYST_MODEL", "qwen2.5-coder:14b")
 
 def understand(question: str, df: pd.DataFrame, previous: dict | None = None, model: str = MODEL):
     """Returns (params, source, warnings)."""
-    params, source = ai_route(question, model, previous)
+    # The previous question's settings are only used when this one LOOKS like a follow-up.
+    # "Which state has the highest margin?" is a new question and must not inherit "Technology, 2017".
+    follow_up = looks_like_follow_up(question, df)
+    params, source = ai_route(question, model, previous if follow_up else None)
     # short follow-up the router couldn't place ("and for West?"): reuse the previous question's settings
     # (not when the AI says the question is too vague: then we ask back instead)
-    looks_like_follow_up = bool(re.match(r"\s*(and|what about|how about|same for|for|in|now|also|then)\b",
-                                         question.lower())) or bool(find_filter_values(question, df))
     if params["q_type"] == "other" and params.get("clear", True) and previous and len(question.split()) <= 6 \
-            and looks_like_follow_up:
+            and follow_up:
         params = {**previous, "filters": dict(previous["filters"]), "clear": True, "clarify_options": []}
         source += " + follow-up"
     # "How is X doing / performing?" is a health check (Q1), not a ranking
@@ -51,6 +52,17 @@ def understand(question: str, df: pd.DataFrame, previous: dict | None = None, mo
     if params["dimension"] in params["filters"]:
         params["dimension"] = "none"
     return params, source, warnings
+
+
+def looks_like_follow_up(question: str, df: pd.DataFrame) -> bool:
+    """'and for West?', 'what about 2016?', 'why is it so low?', 'Texas?' -> True.
+    A full new question ('Which state has the highest margin?') -> False."""
+    q = question.lower().strip()
+    if re.match(r"(and|what about|how about|same for|for|in|now|also|then|but|only|just)\b", q):
+        return True
+    if re.search(r"\b(there|that|those|them|it|its|same|instead|this one)\b", q):
+        return True
+    return len(q.split()) <= 3 and bool(find_filter_values(question, df))
 
 
 def compute(conn, params: dict, question: str, model: str = MODEL) -> recipes.Result:

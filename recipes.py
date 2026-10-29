@@ -129,8 +129,9 @@ FROM superstore
         base_margin = base["profit"] / base["sales"]
         facts.append((f"Share of {of_scope('sales', base_filters).replace('all ', 'company ')}",
                       fmt.pct(row["sales"] / base["sales"])))
-        facts.append(("Company-wide margin, same years", fmt.pct(base_margin)))
-        facts.append(("Company-wide avg discount, same years", fmt.pct(base["discount"])))
+        when = f"in {f['year']}" if "year" in f else "2014–2017"
+        facts.append((f"Company-wide margin {when}", fmt.pct(base_margin)))
+        facts.append((f"Company-wide avg discount {when}", fmt.pct(base["discount"])))
         word = "above" if margin > base_margin else "below"
         headline += f" ({word} the company's {fmt.pct(base_margin)})"
         d_word = "higher" if row["avg_discount"] > base["discount"] else "lower"
@@ -290,6 +291,9 @@ ORDER BY period"""
 
 
 # ---------------------------------------------------------------- Q3 Comparison
+MIN_ORDERS = 10
+
+
 def comparison(conn, p: dict) -> Result:
     metric = p["metric"]
     dim = p["dimension"] if p["dimension"] != "none" else "region"
@@ -300,19 +304,32 @@ def comparison(conn, p: dict) -> Result:
     asked = p["top_n"] or 0
     # a "which one…" question (top 1-2) still gets the next few as context in the chart and table
     limit = max(asked, 5) if asked else (15 if dim in ("state", "city", "customer_name", "product_name") else 50)
+    # Rule: a ratio (margin, discount, order value) from a handful of orders is luck, not a pattern,
+    # so groups with fewer than MIN_ORDERS orders are not ranked
+    is_ratio = metric in RATIOS or metric == "aov"
+    having = f"HAVING COUNT(DISTINCT order_id) >= {MIN_ORDERS}" if is_ratio else ""
     sql = f"""
 SELECT {dim},
        {METRICS[metric]} AS value,
-       SUM(sales) AS sales
+       SUM(sales) AS sales,
+       COUNT(DISTINCT order_id) AS orders
 FROM superstore
 {where}
 GROUP BY {dim}
+{having}
 ORDER BY value {order}
 LIMIT {int(limit)}"""
     df = run(conn, sql, params)
     if df.empty:
-        return Result("comparison", "No data for these filters.", sql=[show_sql(sql, params)])
+        return Result("comparison", "No data for these filters." if not is_ratio else
+                      f"No {dim_name(dim)} has at least {MIN_ORDERS} orders here, so a fair ranking isn't possible.",
+                      sql=[show_sql(sql, params)])
     label = METRIC_LABELS[metric]
+    skipped = 0
+    if is_ratio:
+        small_sql = (f"SELECT COUNT(*) AS n FROM (SELECT {dim} FROM superstore {where} GROUP BY {dim} "
+                     f"HAVING COUNT(DISTINCT order_id) < {MIN_ORDERS})")
+        skipped = int(run(conn, small_sql, params)["n"].iloc[0])
     total_sql = f"SELECT {METRICS[metric]} AS total, COUNT(DISTINCT {dim}) AS groups FROM superstore {where}"
     tot = run(conn, total_sql, params).iloc[0]
 
@@ -331,7 +348,8 @@ LIMIT {int(limit)}"""
             facts.append((f"{first[dim]} loss as % of {of_scope(label, f)}", fmt.pct(share)))
         else:
             facts.append((f"{first[dim]} share of {of_scope(label, f)}", fmt.pct(share)))
-    facts.append((f"Total {of_scope(label, f).replace('all ', '')}", fmt.value(metric, tot["total"])))
+    facts.append(((f"Overall {of_scope(label, f).replace('all ', '')}" if is_ratio
+                   else f"Total {of_scope(label, f).replace('all ', '')}"), fmt.value(metric, tot["total"])))
 
     sqls = [show_sql(sql, params), show_sql(total_sql, params)]
     # Rule 3: how many orders stand behind the top result? (3 big orders is a risk, not a trend)
@@ -362,8 +380,8 @@ ORDER BY value ASC"""
             names = ", ".join(losses[dim].astype(str).head(5)) + (" …" if len(losses) > 5 else "")
             facts.append(("Losing money", f"{len(losses)} of {n_groups} {many}: {names}"))
         elif len(losses):   # long lists of long names help nobody; the full list is in "Result data"
-            facts.append(("Losing money", f"{len(losses)} of {n_groups} {many} "
-                                          f"(total {fmt.value(metric, losses['value'].sum())})"))
+            facts.append(("Losing money", f"{len(losses)} of {n_groups} {many}" +
+                          ("" if is_ratio else f" (total {fmt.value(metric, losses['value'].sum())})")))
         else:
             facts.append(("Losing money", f"none of {n_groups} {many}"))
 
@@ -372,6 +390,10 @@ ORDER BY value ASC"""
         notes.append(f"You asked for the top {asked}; the next {len(df) - asked} are shown for context.")
     elif len(df) < tot["groups"]:
         notes.append(f"Showing {len(df)} of {int(tot['groups'])} {dim_name(dim, plural=True)}.")
+    if skipped:
+        notes.append(f"{skipped} {dim_name(dim, plural=skipped != 1)} with fewer than {MIN_ORDERS} orders "
+                     f"{'are' if skipped != 1 else 'is'} not ranked: a {label.lower()} from a few orders is luck, "
+                     "not a pattern.")
     if concentrated:
         notes.append(f"{first[dim]}'s {label.lower()} comes from only {n_orders} order"
                      f"{'s' if n_orders != 1 else ''}: a few big orders, not a steady pattern, so it can swing a lot.")

@@ -90,7 +90,7 @@ check("'How is Consumer doing?' is a health check (Q1), not a ranking",
       p_h["q_type"] == "descriptive" and p_h["top_n"] == 0 and p_h["filters"] == {"segment": "Consumer"}, p_h)
 r_h = recipes.descriptive(conn, p_h)
 check("health check compares with the company margin (11.5% vs 12.5%)",
-      dict(r_h.facts).get("Company-wide margin, same years") == "12.5%" and dict(r_h.facts)["Profit margin"] == "11.5%",
+      dict(r_h.facts).get("Company-wide margin 2014–2017") == "12.5%" and dict(r_h.facts)["Profit margin"] == "11.5%",
       r_h.facts)
 
 print("Q4 Diagnostic")

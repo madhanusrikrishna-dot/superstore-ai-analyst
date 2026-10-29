@@ -130,6 +130,23 @@ check("'Is that good?' asks back instead of repeating the last answer", vague["c
 web, _, _ = pipeline.understand("Did our new website increase sales?", df, east_p)
 check("an A/B question after another answer is not treated as a follow-up", web["q_type"] == "experiment", web)
 
+# ---- ratios from a handful of orders are not ranked (South Carolina: 50% margin from 1 order)
+tech = recipes.comparison(conn, {**base, "q_type": "comparison", "metric": "margin", "dimension": "state",
+                                  "order": "desc", "top_n": 1, "filters": {"category": "Technology", "year": "2017"}})
+check("margin ranking skips states with fewer than 10 orders", "South Carolina" not in tech.headline
+      and int(dict(tech.facts)[next(k for k, _ in tech.facts if k.startswith("Orders behind"))]) >= 10, tech.headline)
+check("skipped small groups are explained", any("fewer than 10 orders are not ranked" in n for n in tech.notes))
+check("percentages are never added up", "total" not in dict(tech.facts)["Losing money"], dict(tech.facts)["Losing money"])
+
+# ---- a new question does not inherit the previous question's filters
+prev_t, _, _ = pipeline.understand("How is the Technology category doing in 2017?", df)
+new_q, _, _ = pipeline.understand("Which state has the highest profit margin?", df, prev_t)
+check("a new question starts fresh (no Technology, 2017 carried over)", new_q["filters"] == {}, new_q)
+for q, want in [("and for the East region?", True), ("what about in 2016?", True), ("Why is it so low?", True),
+                ("Texas?", True), ("Which state has the highest profit margin?", False),
+                ("Does discount affect profit in the South?", False), ("Total sales in 2016", False)]:
+    check(f"follow-up detection: '{q}'", pipeline.looks_like_follow_up(q, df) == want)
+
 # ---- "AI writes, code checks": real explanations the AI wrote during user testing (29 Oct 2026)
 import verify  # noqa: E402
 
