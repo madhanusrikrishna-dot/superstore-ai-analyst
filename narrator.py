@@ -32,6 +32,12 @@ Rules:
   a region a region.
 - A company-wide number is an average to compare with, NOT a target. A "change" number is a difference,
   not the value of that period: never describe a change as the period's profit or loss.
+- Never call a number good, bad, healthy, low, high, strong or weak unless a comparison for it is listed
+  (last year, company average, another group). With no comparison, describe it without judging it.
+- Never give a reason (e.g. "due to higher discounts") unless the numbers listed show it. Check the direction:
+  if a discount listed here is LOWER than the company's, discounts are not the reason.
+- When counts and totals are listed, use them: "118 lines lost $16.0K" says more than an average.
+- Lead with the headline's finding; do not swap in a different, smaller point.
 - Words must match the numbers: "majority" or "most" only for more than 50%; "slight" only for under 5%.
 - Write exactly two short parts:
   **Why it matters:** 2 sentences on what this means for the business.

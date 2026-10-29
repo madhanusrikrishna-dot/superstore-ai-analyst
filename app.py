@@ -39,7 +39,7 @@ def understood_text(p: dict) -> str:
     if p["q_type"] in ("descriptive", "trend", "comparison", "diagnostic", "forecast"):
         parts.append(METRIC_LABELS[p["metric"]])
     if p["q_type"] == "comparison":
-        parts.append("by " + (p["dimension"] if p["dimension"] != "none" else "region").replace("_", "-"))
+        parts.append("by " + recipes.dim_name(p["dimension"] if p["dimension"] != "none" else "region"))
         parts.append("lowest first" if p["order"] == "asc" else "highest first")
         if p["top_n"]:
             parts.append(f"top {p['top_n']}")

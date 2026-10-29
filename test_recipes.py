@@ -106,7 +106,7 @@ check("routed as correlation", p["q_type"] == "correlation", p["q_type"])
 r_val = float(dict(r.facts)["Correlation (r)"])
 check("negative correlation", r_val < 0, r_val)
 bands = r.table.set_index("discount_band")["value"]
-check("over-40% band loses money", bands["4. Over 40%"] < 0, bands.to_dict())
+check("over-40% band loses money", bands["Over 40%"] < 0, bands.to_dict())
 
 print("Q6 Segmentation")
 p, r = ask("Who are our best customers?")

@@ -38,6 +38,39 @@ def scope_text(filters: dict) -> str:
     return f"{where}, {filters['year']}" if "year" in filters else f"{where}, 2014–2017"
 
 
+# ---------------------------------------------------------------- wording rules (used by every recipe)
+# Rule 2: people never see raw column names
+DIM_LABELS = {"region": ("region", "regions"), "category": ("category", "categories"),
+              "sub_category": ("sub-category", "sub-categories"), "segment": ("segment", "segments"),
+              "state": ("state", "states"), "city": ("city", "cities"), "ship_mode": ("ship mode", "ship modes"),
+              "customer_name": ("customer", "customers"), "product_name": ("product", "products")}
+
+
+def dim_name(dim: str, plural: bool = False) -> str:
+    one, many = DIM_LABELS.get(dim, (dim.replace("_", " "), dim.replace("_", " ") + "s"))
+    return many if plural else one
+
+
+# Rule 1: every "share of …" label says share of WHAT
+def of_scope(label: str, filters: dict) -> str:
+    """'sales' + {sub_category: Chairs} -> 'Chairs sales (2014–2017)'; {year: 2017} -> 'all sales in 2017'."""
+    parts = [str(v) for k, v in filters.items() if k != "year"]
+    when = f" in {filters['year']}" if "year" in filters else " (2014–2017)"
+    return f"{', '.join(parts) if parts else 'all'} {label.lower()}{when}"
+
+
+def focus_of(filters: dict) -> str | None:
+    """The thing the user is looking at ('Texas', 'Chairs'), or None for the whole company."""
+    parts = [str(v) for k, v in filters.items() if k != "year"]
+    return ", ".join(parts) if parts else None
+
+
+def previous_year(filters: dict) -> dict | None:
+    if "year" not in filters:
+        return None
+    return {**filters, "year": str(int(filters["year"]) - 1)}
+
+
 # ---------------------------------------------------------------- Q1 Descriptive
 def descriptive(conn, p: dict) -> Result:
     where, params = where_clause(p["filters"])
@@ -68,27 +101,50 @@ FROM superstore
     table = pd.DataFrame([{**row.to_dict(), "margin": round(margin, 4), "aov": round(aov, 2)}])
     notes = []
     sqls = [show_sql(sql, params)]
-    headline = f"{scope_text(p['filters'])}: {fmt.money(row['sales'])} in sales, profit margin {fmt.pct(margin)}"
-    # "how is X doing?" needs a benchmark: the whole company over the same years
-    if any(k != "year" for k in p["filters"]):
-        base_filters = {k: v for k, v in p["filters"].items() if k == "year"}
+    f = p["filters"]
+    headline = f"{scope_text(f)}: {fmt.money(row['sales'])} in sales, profit margin {fmt.pct(margin)}"
+    totals_sql = ("SELECT SUM(sales) AS sales, SUM(profit) AS profit, AVG(discount) AS discount "
+                  "FROM superstore {w}")
+
+    # Rule 3/4: a number is only judged against a comparison shown on screen
+    # (a) the same scope last year
+    prev = previous_year(f)
+    if prev:
+        pw, pp = where_clause(prev)
+        last = run(conn, totals_sql.format(w=pw), pp).iloc[0]
+        sqls.append(show_sql(totals_sql.format(w=pw), pp))
+        if last["sales"]:
+            last_margin = last["profit"] / last["sales"]
+            facts.append((f"Sales vs {prev['year']}", fmt.change("sales", last["sales"], row["sales"])))
+            facts.append((f"Profit margin in {prev['year']}", fmt.pct(last_margin)))
+            headline += (f"; sales {fmt.change('sales', last['sales'], row['sales'])} vs {prev['year']}, "
+                         f"margin {fmt.change('margin', last_margin, margin)}")
+    # (b) the whole company over the same years ("how is X doing?")
+    if focus_of(f):
+        base_filters = {k: v for k, v in f.items() if k == "year"}
         bw, bp = where_clause(base_filters)
-        base_sql = f"SELECT SUM(sales) AS sales, SUM(profit) AS profit FROM superstore {bw}"
-        base = run(conn, base_sql, bp).iloc[0]
+        base = run(conn, totals_sql.format(w=bw), bp).iloc[0]
+        sqls.append(show_sql(totals_sql.format(w=bw), bp))
         base_margin = base["profit"] / base["sales"]
-        facts.append(("Share of company sales", fmt.pct(row["sales"] / base["sales"])))
+        facts.append((f"Share of {of_scope('sales', base_filters).replace('all ', 'company ')}",
+                      fmt.pct(row["sales"] / base["sales"])))
         facts.append(("Company-wide margin, same years", fmt.pct(base_margin)))
-        sqls.append(show_sql(base_sql, bp))
+        facts.append(("Company-wide avg discount, same years", fmt.pct(base["discount"])))
         word = "above" if margin > base_margin else "below"
         headline += f" ({word} the company's {fmt.pct(base_margin)})"
-    if row["avg_discount"] > margin:
-        notes.append("Average discount is higher than the profit margin. Discounts may be eating profit (check with a correlation question).")
+        d_word = "higher" if row["avg_discount"] > base["discount"] else "lower"
+        notes.append(f"Average discount here is {fmt.pct(row['avg_discount'])}, {d_word} than the company's "
+                     f"{fmt.pct(base['discount'])}" + (", so discounts are not the reason for a lower margin."
+                                                       if d_word == "lower" and margin < base_margin else "."))
+    focus = focus_of(f)
     return Result(
         "descriptive",
         headline,
         facts=facts, table=table, sql=sqls, notes=notes, kpi_cards=True,
-        next_questions=["Show monthly sales trend", "Which region has the lowest profit?",
-                        "Does discount affect profit?"],
+        next_questions=([f"Why is profit low in {focus}?", f"Show monthly sales for {focus}",
+                         f"Does discount affect profit in {focus}?"] if focus else
+                        ["Show monthly sales trend", "Which region has the lowest profit?",
+                         "Does discount affect profit?"]),
     )
 
 
@@ -265,16 +321,29 @@ LIMIT {int(limit)}"""
     if len(df) > 1:
         second = df.iloc[1]
         facts.append((f"Next {word}", f"{second[dim]} · {fmt.value(metric, second['value'])}"))
+    f = p["filters"]
+    share = None
     if metric in ADDITIVE and tot["total"]:
         df["share_of_total"] = df["value"] / tot["total"]
+        share = abs(first["value"]) / abs(tot["total"])
         if first["value"] < 0:
-            facts.append((f"{first[dim]} loss compared with total {label.lower()}",
-                          fmt.pct(abs(first["value"]) / tot["total"])))
+            facts.append((f"{first[dim]} loss as % of {of_scope(label, f)}", fmt.pct(share)))
         else:
-            facts.append((f"{first[dim]} share of total {label.lower()}", fmt.pct(first["value"] / tot["total"])))
-    facts.append(("Overall " + label.lower(), fmt.value(metric, tot["total"])))
+            facts.append((f"{first[dim]} share of {of_scope(label, f)}", fmt.pct(share)))
+    facts.append((f"Total {of_scope(label, f).replace('all ', '')}", fmt.value(metric, tot["total"])))
 
     sqls = [show_sql(sql, params), show_sql(total_sql, params)]
+    # Rule 3: how many orders stand behind the top result? (3 big orders is a risk, not a trend)
+    ow, op = where_clause({**f, dim: first[dim]}) if dim in ("region", "category", "sub_category", "segment",
+                                                               "state", "ship_mode") else (None, None)
+    if ow is None:
+        ow = where + (" AND " if where else "WHERE ") + f"{dim} = ?"
+        op = params + [first[dim]]
+    orders_sql = f"SELECT COUNT(DISTINCT order_id) AS n FROM superstore {ow}"
+    n_orders = int(run(conn, orders_sql, op)["n"].iloc[0])
+    sqls.append(show_sql(orders_sql, op))
+    facts.insert(1, (f"Orders behind {first[dim]}", fmt.count(n_orders)))
+    concentrated = share is not None and share >= 0.10 and n_orders <= 5
     if metric in ("profit", "margin"):
         # count losing groups across ALL groups, not only the rows shown
         loss_sql = f"""
@@ -287,22 +356,31 @@ ORDER BY value ASC"""
         losses = run(conn, loss_sql, params)
         sqls.append(show_sql(loss_sql, params))
         n_groups = int(tot["groups"])
-        nice = dim.replace("_", "-")
-        if len(losses):
+        many = dim_name(dim, plural=True)
+        if len(losses) and n_groups <= 20:
             names = ", ".join(losses[dim].astype(str).head(5)) + (" …" if len(losses) > 5 else "")
-            facts.append((f"Losing money", f"{len(losses)} of {n_groups} {nice} values: {names}"))
+            facts.append(("Losing money", f"{len(losses)} of {n_groups} {many}: {names}"))
+        elif len(losses):   # long lists of long names help nobody; the full list is in "Result data"
+            facts.append(("Losing money", f"{len(losses)} of {n_groups} {many} "
+                                          f"(total {fmt.value(metric, losses['value'].sum())})"))
         else:
-            facts.append((f"Losing money", f"none of {n_groups} {nice} values"))
+            facts.append(("Losing money", f"none of {n_groups} {many}"))
 
     notes = []
     if asked and asked < len(df):
         notes.append(f"You asked for the top {asked}; the next {len(df) - asked} are shown for context.")
     elif len(df) < tot["groups"]:
-        notes.append(f"Showing {len(df)} of {int(tot['groups'])} {dim.replace('_', '-')} values.")
+        notes.append(f"Showing {len(df)} of {int(tot['groups'])} {dim_name(dim, plural=True)}.")
+    if concentrated:
+        notes.append(f"{first[dim]}'s {label.lower()} comes from only {n_orders} order"
+                     f"{'s' if n_orders != 1 else ''}: a few big orders, not a steady pattern, so it can swing a lot.")
 
-    nice_dim = dim.replace("_", "-")
-    headline = f"{first[dim]} has the {word} {label.lower()} ({fmt.value(metric, first['value'])}) by {nice_dim}"
+    headline = f"{first[dim]} has the {word} {label.lower()} ({fmt.value(metric, first['value'])}) by {dim_name(dim)}"
+    if concentrated:
+        headline += (f": {fmt.pct(share)} of {of_scope(label, f)}, from just {n_orders} "
+                     f"order{'s' if n_orders != 1 else ''}")
     filterable = dim in ("region", "category", "sub_category", "segment", "state", "ship_mode")
+    other = "profit" if metric != "profit" else "sales"
     return Result(
         "comparison", headline, facts=facts, table=df,
         chart=charts.bar(df, dim, "value", metric),
@@ -310,8 +388,7 @@ ORDER BY value ASC"""
         next_questions=([f"Why is profit low in {first[dim]}?", f"Show monthly {label.lower()} for {first[dim]}",
                          "Does discount affect profit?"] if filterable and order == "ASC" else
                         [f"Show monthly {label.lower()} for {first[dim]}",
-                         f"Compare profit by {nice_dim}" if metric != "profit" else f"Compare sales by {nice_dim}",
-                         "Does discount affect profit?"] if filterable else
+                         f"Compare {other} by {dim_name(dim)}", "Does discount affect profit?"] if filterable else
                         [f"Show monthly {label.lower()}", f"Compare {label.lower()} by region",
                          "Does discount affect profit?"]),
     )
@@ -350,7 +427,7 @@ ORDER BY value ASC"""
             break
         worst = df.iloc[0]
         avg_other = df["value"].iloc[1:].mean()
-        path.append({"level": level.replace("_", "-"), "weakest": worst[level],
+        path.append({"level": dim_name(level), "weakest": worst[level],
                      label: fmt.value(metric, worst["value"]),
                      "average of the others": fmt.value(metric, avg_other),
                      "avg discount": fmt.pct(worst["avg_discount"])})
@@ -385,7 +462,7 @@ ORDER BY value ASC"""
     return Result(
         "diagnostic", headline, facts=facts, table=pd.DataFrame(path),
         chart=charts.bar(last_df, last_level, "value", metric,
-                         title=f"{label} by {last_level.replace('_', '-')} inside {' / '.join(str(x['weakest']) for x in path[:-1]) or 'all data'}"),
+                         title=f"{label} by {dim_name(last_level)} inside {' / '.join(str(x['weakest']) for x in path[:-1]) or 'all data'}"),
         sql=sqls, notes=notes,
         next_questions=["Does discount affect profit?", f"Compare {label.lower()} by sub-category",
                         "Show monthly profit trend"],
@@ -416,33 +493,51 @@ SELECT CASE WHEN discount = 0 THEN '1. No discount'
             WHEN discount <= 0.4 THEN '3. 21-40%'
             ELSE '4. Over 40%' END AS discount_band,
        COUNT(*) AS lines,
-       AVG({y}) AS value
+       AVG({y}) AS value,
+       SUM({y}) AS total
 FROM superstore
 {where}
 GROUP BY discount_band
 ORDER BY discount_band"""
         table = run(conn, band_sql, params)
         sqls.append(show_sql(band_sql, params))
+        table["discount_band"] = table["discount_band"].str[3:]   # '2. Up to 20%' -> 'Up to 20%' (SQL kept the order)
         metric = y if y in ("profit", "sales") else "quantity"
         chart = charts.bar(table, "discount_band", "value", metric, title=f"Average {y} per order line by discount")
         for _, row in table.iterrows():
-            facts.append((f"Avg {y} per line, {row['discount_band'][3:]}", fmt.value(metric, row["value"])))
-        neg = table[table["value"] < 0]
-        if len(neg) and y == "profit":
-            facts.append(("Loss starts at", neg.iloc[0]["discount_band"][3:]))
+            facts.append((row["discount_band"] if row["discount_band"] == "No discount"
+                          else f"{row['discount_band']} discount",
+                          f"{fmt.count(row['lines'])} lines · avg {fmt.value(metric, row['value'])} · "
+                          f"total {fmt.value(metric, row['total'])}"))
+        missing = [b for b in ("No discount", "Up to 20%", "21-40%", "Over 40%") if b not in set(table["discount_band"])]
+        notes_extra = ([f"No order lines with {', '.join(missing)} discount in {scope_text(p['filters'])}, "
+                        "so that band is not shown."] if missing else [])
     else:
         chart = charts.scatter(df, x, y, title=f"{y} vs {x}")
         table = df.describe().T.reset_index()
+        notes_extra = []
 
     headline = f"{x.title()} and {y} have {strength} {direction} relationship (r = {r:+.2f})"
     if x == "discount" and y == "profit" and table is not None and (table["value"] < 0).any():
-        first_loss = table[table["value"] < 0].iloc[0]["discount_band"][3:]
-        headline += f", but order lines with {first_loss} discount lose money on average"
+        # Rule 3: lead with the money, not the average. A weak r can still hide a big loss.
+        neg = table[table["value"] < 0]
+        lost, lines = neg["total"].sum(), int(neg["lines"].sum())
+        scope_profit = float(df[y].sum())
+        bands = " and ".join(b.lower() for b in neg["discount_band"])
+        facts.append((f"Lost on {bands} discount lines", fmt.money(lost)))
+        if scope_profit > 0:
+            facts.append((f"That loss as % of {of_scope('profit', p['filters'])}", fmt.pct(abs(lost) / scope_profit)))
+        headline = (f"Order lines with {bands} discount lost {fmt.money(abs(lost))} in total "
+                    f"({fmt.count(lines)} lines), even though the overall link is {strength.replace('a ', '')} "
+                    f"(r = {r:+.2f})")
+    focus = focus_of(p["filters"])
     return Result(
         "correlation", headline, facts=facts, table=table, chart=chart, sql=sqls,
-        notes=["Correlation ≠ cause. A linked pattern is a lead; only a controlled test (A/B, Q9) proves cause."],
-        next_questions=["Which sub-categories get the highest discount?", "Why is profit low in Tables?",
-                        "Compare profit by region"],
+        notes=notes_extra + ["Correlation ≠ cause. A linked pattern is a lead; only a controlled test (A/B, Q9) "
+                             "proves cause."],
+        next_questions=["Which sub-categories get the highest discount?",
+                        f"Why is profit low in {focus}?" if focus else "Which sub-category has the lowest profit?",
+                        "Compare profit by region" if "region" not in p["filters"] else "Compare profit by category"],
     )
 
 
@@ -491,18 +586,25 @@ GROUP BY customer_id, customer_name"""
 
     facts = []
     for _, s in seg.iterrows():
-        facts.append((s["segment"], f"{fmt.count(s['customers'])} customers · {fmt.pct(s['share_of_sales'])} of sales"))
+        facts.append((s["segment"], f"{fmt.count(s['customers'])} customers ({fmt.pct(s['share_of_customers'])}) · "
+                                    f"{fmt.money(s['sales'])} ({fmt.pct(s['share_of_sales'])} of sales)"))
     risk = seg[seg["segment"] == "At risk"]
     notes = ["Scores: R = how recently, F = how often, M = how much, each 1–4 by quartile (4 = best).",
              f"Recency measured from the last date in the data ({end_date.date()})."]
-    if len(risk):
+    if len(risk) and risk.index[0] != seg["share_of_sales"].idxmax():   # the headline already says it otherwise
         notes.append(f"'At risk' customers bought often but not recently: {fmt.money(risk['sales'].iloc[0])} "
                      "of past sales. A win-back offer is the usual action.")
     top = c.sort_values("monetary", ascending=False).head(10)[
         ["customer_name", "segment", "frequency", "monetary", "recency_days"]]
-    champ = seg[seg["segment"] == "Champions"]
-    headline = ("Champions are " + fmt.pct(champ["share_of_customers"].iloc[0]) + " of customers but bring "
-                + fmt.pct(champ["share_of_sales"].iloc[0]) + " of sales") if len(champ) else "Customer segments by RFM"
+    # Rule 3: lead with the group that holds the most money, and say what it means
+    big = seg.loc[seg["share_of_sales"].idxmax()]
+    meaning = {"At risk": "they used to buy often but have not bought recently; win them back first",
+               "Lost / hibernating": "they have not bought in a long time",
+               "Champions": "they buy often and bought recently; keep them happy",
+               "Loyal": "they buy often",
+               "Recent, low frequency": "they bought recently but rarely; turn them into regulars"}[big["segment"]]
+    headline = (f"{big['segment']} customers hold the biggest share of sales: {fmt.pct(big['share_of_sales'])} "
+                f"({fmt.money(big['sales'])}, {fmt.count(big['customers'])} customers), {meaning}")
     return Result(
         "segmentation", headline, facts=facts, table=seg,
         chart=charts.bar(seg, "segment", "share_of_sales", "margin", title="Share of sales by segment"),
@@ -542,17 +644,27 @@ def cohort(conn, p: dict) -> Result:
 
     pivot = heat.pivot(index="cohort", columns="quarters_after", values="retention").round(3)
     pivot.columns = [f"Q+{c}" for c in pivot.columns]
-    facts = [("Customers who bought again next quarter (avg)", fmt.pct(avg_at(1))),
-             ("Active 4 quarters later (avg)", fmt.pct(avg_at(4))),
+    # Rule 3: "do they come back?" is answered by how many EVER come back, not by one quarter's rate
+    quarters_per_customer = df.groupby("customer_id")["q"].nunique()
+    ever_back = float((quarters_per_customer > 1).mean())
+    n_cust = len(quarters_per_customer)
+    facts = [("Customers who came back in a later quarter (ever)",
+              f"{fmt.pct(ever_back)} ({fmt.count((quarters_per_customer > 1).sum())} of {fmt.count(n_cust)})"),
+             ("Customers who bought again next quarter (avg per cohort)", fmt.pct(avg_at(1))),
+             ("Active 4 quarters later (avg per cohort)", fmt.pct(avg_at(4))),
              ("Biggest cohort", f"{heat.loc[heat['active'].idxmax(), 'cohort']} · {fmt.count(size.max())} new customers"),
              ("Cohorts shown", fmt.count(len(pivot)))]
+    notes = ["Each row is a group of customers who first bought in that quarter; each cell is the % of them who "
+             "bought again N quarters later.", "Cohorts with fewer than 10 customers are hidden.",
+             f"Customers come back, just not every quarter: about {fmt.pct(avg_at(1))} of a group buys in any "
+             "given quarter, but over the years most return."]
+    if "year" in p["filters"]:
+        notes.append("Year filter ignored: a cohort needs the following quarters to measure returns.")
     return Result(
-        "cohort", f"On average {fmt.pct(avg_at(1))} of new customers buy again the next quarter",
+        "cohort", f"{fmt.pct(ever_back)} of customers came back to buy again in a later quarter; in a typical "
+                  f"quarter about {fmt.pct(avg_at(1))} of a group buys",
         facts=facts, table=pivot.reset_index(), chart=charts.heatmap(heat, title="Retention by first-purchase quarter"),
-        sql=[show_sql(sql, params)],
-        notes=["Each row is a group of customers who first bought in that quarter; each cell is the % of them who "
-               "bought again N quarters later.", "Cohorts with fewer than 10 customers are hidden.",
-               "Year filters are ignored here: a cohort needs the following quarters to measure returns."],
+        sql=[show_sql(sql, params)], notes=notes,
         next_questions=["Who are our best customers?", "Show monthly orders trend", "Compare customers by region"],
     )
 
@@ -634,9 +746,15 @@ def not_supported(q_type: str) -> Result:
         "experiment": ("a column saying which group (A or B) each customer was in, plus the outcome",
                        "Superstore has no test groups, so it can't prove whether a change caused a result."),
     }[q_type]
+    notes = [needs[1], "Load a dataset with those columns to use this type."]
+    nxt = ["Does discount affect profit?", "Do customers come back after their first purchase?"]
+    if q_type == "experiment":
+        # Rule 8: offer what the data CAN show, and say what it can't prove
+        notes.insert(1, "What this data can show: sales before vs after a date (e.g. ask 'Show monthly sales'). "
+                        "That shows whether sales changed, but not whether the change caused it.")
+        nxt = ["Show monthly sales", "Show monthly orders trend"]
     return Result(q_type, f"This data can't answer {q_type} questions",
-                  facts=[("Needs", needs[0])], notes=[needs[1], "Load a dataset with those columns to use this type."],
-                  next_questions=["Does discount affect profit?", "Do customers come back after their first purchase?"])
+                  facts=[("Needs", needs[0])], notes=notes, next_questions=nxt)
 
 
 RECIPES = {

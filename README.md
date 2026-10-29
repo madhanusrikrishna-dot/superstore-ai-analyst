@@ -4,7 +4,7 @@ Ask business questions about the Superstore sales data in plain English. A local
 (via Ollama, free, no API key) decides **what type of question** it is, then **fixed methods in code**
 do the analysis, so the numbers are always calculated, never guessed.
 
-**Results:** 46/46 recipe checks · 32/32 end-to-end questions with the real model (v1.0) · every answer shows its SQL.
+**Results:** 46/46 recipe checks · 7,131 wording-rule checks on 898 answers · 32/32 end-to-end questions with the real model (v1.0) · every answer shows its SQL.
 
 ## See it work
 
@@ -62,9 +62,13 @@ So in this version:
 ## Tested like a real release
 
 1. **Recipe tests** (`test_recipes.py`): every method checked against numbers verified by hand in SQL.
-2. **Evaluation suite** (`evaluate.py`): real questions through the real model. It checks question type,
+2. **Rule tests** (`test_rules.py`): 7,131 checks on 898 answers (every question type × years, regions,
+   products, states) that results are *explained* honestly: every "share of" label says of what, no raw column
+   names, headlines lead with the biggest $ finding, no "healthy/low" without a comparison, next questions keep
+   the same scope. Breaking a rule on purpose makes these tests fail.
+3. **Evaluation suite** (`evaluate.py`): real questions through the real model. It checks question type,
    filters, calculation, and that the explanation uses no invented numbers.
-3. **User testing**: questions typed freely, in new wording. Each bug found became a new test before it was fixed:
+4. **User testing**: questions typed freely, in new wording. Each bug found became a new test before it was fixed:
 
 | Question | Bug found | Fix |
 |---|---|---|
@@ -73,6 +77,18 @@ So in this version:
 | How is the Consumer segment doing? | Treated as a ranking with an invented "top 1"; AI called 31% "the majority" | Health-check rule + benchmark; wording rules |
 | Forecast profit for the next 6 months | Confident headline despite 145% backtest error | "Rough estimate only" + N-month total |
 | Show quarterly profit for Furniture | AI read a year-on-year *change* (-$4,478) as the quarter's profit (-$974) | Labels say "a change, not the value" |
+
+Round 2 (v1.1) found that numbers were right but some *conclusions* weren't, so instead of 16 patches,
+general rules were added (and tested above):
+
+| Question | What the answer said | What the data says | Rule |
+|---|---|---|---|
+| Who are our best customers? | Focus on Champions (20.1% of sales) | At-risk customers hold the most: 26.4% ($605.7K) | Headline = biggest $ finding |
+| Do customers come back? | Retention is "low" (30% next quarter) | 98.1% come back in a later quarter | Headline answers the question asked |
+| Does discount affect profit in the West? | Effect "not strong enough to matter" | 118 lines lost $16.0K, 14.8% of West profit | Counts + totals, not just averages |
+| How is East doing in 2016? | Lower margin "due to higher discounts" | East discount 14.3% is *lower* than the company's 15.5% | No reason without the numbers to show it |
+| Total sales in 2016 | "Healthy range"; discount % compared with margin % | +29.5% vs 2015; the comparison made no sense | Compare with last year; removed the flawed note |
+| Top 5 products by profit | Top copier drives 16.8% of profit | That profit came from only 3 orders | Flag results from very few orders |
 
 ## Run it
 
@@ -89,10 +105,11 @@ Put `Sample - Superstore.csv` (Kaggle Superstore dataset) in the same folder.
 **Live demo link (Windows):** double-click `start_demo.bat`. It starts the app and a temporary public link
 (Cloudflare quick tunnel, needs `cloudflared`). Close both windows to stop.
 
-Two test suites:
+Three test suites:
 ```
 python test_recipes.py     # 46 checks: every recipe vs numbers verified by hand in SQL (no AI needed)
-python evaluate.py         # 34 real questions through the real AI: question type, filters,
+python test_rules.py       # 7,131 checks: answers are explained honestly on 898 answers (no AI needed)
+python evaluate.py         # 36 real questions through the real AI: question type, filters,
                            # calculation, and "no invented numbers" in the explanation
 ```
 `evaluate.py` writes `eval_report.md` with the score per question type and every failure.
@@ -112,6 +129,7 @@ python evaluate.py         # 34 real questions through the real AI: question typ
 | `fmt.py` | Number formatting |
 | `business_notes.md` | Business context the AI reads |
 | `test_recipes.py` | 46 checks against hand-verified SQL results |
+| `test_rules.py` | Wording-rule checks on 898 answers |
 
 ## Limits
 

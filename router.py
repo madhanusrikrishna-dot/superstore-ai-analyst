@@ -160,14 +160,22 @@ def keyword_route(question: str) -> dict:
     """Simple backup router (no AI): picks the type from keywords."""
     q = question.lower()
     raw = _default_params()
+    # too vague to answer alone ("is that good?"): ask back instead of guessing
+    if re.fullmatch(r"\s*(is|was) (that|it|this) (good|bad|ok|okay|normal|high|low)\W*|"
+                    r"\s*(what about (it|that|this)|so|and|why|really|ok|okay)\W*", q):
+        raw.update(q_type="other", clear=False,
+                   clarify_options=["Is our overall profit margin good?", "How did sales change over time?",
+                                    "Which region performs best?"])
+        return raw
     rules = [
+        ("experiment", r"\b(a/b|ab test|experiment|variant|did (the|our) new|new (website|design|layout|app)|"
+                       r"redesign|did .* campaign)\b"),
         ("forecast", r"\b(forecast|predict|next (month|quarter|year)|expect|estimate|projection)\b"),
         ("diagnostic", r"\b(why|reason|cause|causing|explain the drop)\b"),
         ("correlation", r"\b(affect|impact|relationship|correlat|does .* (increase|reduce))\b"),
         ("segmentation", r"\b(segment customers|rfm|best customers|loyal|at risk|types of customers|customer segments)\b"),
         ("cohort", r"\b(retention|come back|repeat|churn|cohort|return rate)\b"),
         ("funnel", r"\b(funnel|drop.?off|conversion|checkout|add to cart)\b"),
-        ("experiment", r"\b(a/b|ab test|experiment|variant|did the new)\b"),
         ("trend", r"\b(monthly|yearly|quarterly|over time|trend|growing|growth|by month|by year|each month|each year|seasonal)\b"),
         ("comparison", r"\b(by|per|each|which|top|best|worst|highest|lowest|compare|vs)\b"),
         ("descriptive", r"\b(total|overall|how much|how many|summary|kpi)\b"),

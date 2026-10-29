@@ -26,7 +26,10 @@ def understand(question: str, df: pd.DataFrame, previous: dict | None = None, mo
     params, source = ai_route(question, model, previous)
     # short follow-up the router couldn't place ("and for West?"): reuse the previous question's settings
     # (not when the AI says the question is too vague: then we ask back instead)
-    if params["q_type"] == "other" and params.get("clear", True) and previous and len(question.split()) <= 6:
+    looks_like_follow_up = bool(re.match(r"\s*(and|what about|how about|same for|for|in|now|also|then)\b",
+                                         question.lower())) or bool(find_filter_values(question, df))
+    if params["q_type"] == "other" and params.get("clear", True) and previous and len(question.split()) <= 6 \
+            and looks_like_follow_up:
         params = {**previous, "filters": dict(previous["filters"]), "clear": True, "clarify_options": []}
         source += " + follow-up"
     # "How is X doing / performing?" is a health check (Q1), not a ranking
@@ -81,27 +84,52 @@ def answer(conn, df, question: str, previous: dict | None = None, params: dict |
         params["filters"], warnings = normalize_filters(params["filters"], df)
         source = "edited by you"
     if not params.get("clear", True):
+        options = params.get("clarify_options") or []
+        if previous:   # "is that good?" usually means the answer just above: suggest checks on THAT scope
+            options = context_options(previous, options)
         return {"question": question, "params": params, "source": source, "result": None, "narration": "",
-                "clarify": params.get("clarify_options") or []}
+                "clarify": options}
     result = compute(conn, params, question, model)
     result.notes = warnings + result.notes
-    result.next_questions = keep_year(result.next_questions, params["filters"])
+    result.next_questions = keep_scope(result.next_questions, params["filters"])
     return {"question": question, "params": params, "source": source, "result": result,
             "narration": narrate(question, result, params, model), "clarify": []}
 
 
-def keep_year(questions: list, filters: dict) -> list:
-    """Suggested next questions stay in the same year as the answer ("Why is profit low in Texas in 2017?")."""
-    year = filters.get("year")
-    if not year:
-        return questions
+def keep_scope(questions: list, filters: dict) -> list:
+    """Rule 7: suggested next questions stay on what the user is looking at
+    ("Why is profit low in Texas in 2017?", "Which sub-categories get the highest discount in West?")."""
     out = []
     for q in questions:
-        if re.search(r"\b20\d\d\b", q) or "forecast" in q.lower():
-            out.append(q)
-        else:
-            out.append(q.rstrip("?") + f" in {year}" + ("?" if q.endswith("?") else ""))
+        text = q.rstrip("?")
+        for key, value in filters.items():
+            if key == "year":
+                continue
+            v = str(value)
+            if v.lower() in text.lower() or f"by {recipes.dim_name(key)}" in text.lower():
+                continue          # already there, or the question compares across that column
+            text += f" in {v}"
+        year = filters.get("year")
+        if year and not re.search(r"\b20\d\d\b", text) and "forecast" not in text.lower():
+            text += f" in {year}"
+        out.append(text + ("?" if q.endswith("?") else ""))
     return out
+
+
+keep_year = keep_scope   # old name, kept for the tests
+
+
+def context_options(previous: dict, ai_options: list) -> list:
+    """Clear questions about the previous answer's scope, for a vague follow-up like 'is that good?'."""
+    f = previous.get("filters", {})
+    focus, year = recipes.focus_of(f), f.get("year")
+    yr = f" in {year}" if year else ""
+    first = (f"How is {focus} doing{yr} compared with the company?" if focus
+             else f"How do total sales and profit{yr} compare with the year before?" if year
+             else "How did sales and profit change year by year?")
+    options = [first, f"Which region has the lowest profit{yr}?"]
+    options += [o for o in ai_options if o not in options][:1]
+    return options[:3]
 
 
 def custom_sql(conn, question: str, model: str = MODEL) -> recipes.Result:

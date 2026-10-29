@@ -3,6 +3,7 @@ data.py - loads the Superstore CSV into an in-memory SQL database
 and keeps the lists of allowed columns (so the AI can never invent a column).
 """
 
+import re
 import sqlite3
 
 import pandas as pd
@@ -62,6 +63,16 @@ def normalize_filters(filters: dict, df: pd.DataFrame):
         value = str(value).strip()
         if key == "year":
             years = sorted(df["order_date"].str[:4].unique())
+            # "2014-2017", "2014–2017", "all years" = the whole data: no filter, no warning
+            found = re.findall(r"20\d\d", value)
+            if not found or (len(found) >= 2 and found[0] <= years[0] and found[-1] >= years[-1]) \
+                    or value.lower() in ("all years", "all time", "every year"):
+                continue
+            if len(found) >= 2:
+                warnings.append(f"Year ranges like {value} aren't supported yet; showing all years "
+                                f"({years[0]}–{years[-1]}). Ask about one year to filter.")
+                continue
+            value = found[0]
             if value in years:
                 clean["year"] = value
             else:

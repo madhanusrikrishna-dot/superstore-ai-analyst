@@ -75,6 +75,9 @@ CASES = [
     # Q7 / Q9 (data can't answer)
     ("Where do customers drop off in the checkout funnel?", {"q_type": "funnel"}, None),
     ("Did the new website design increase conversions in the A/B test?", {"q_type": "experiment"}, None),
+    ("Which customer bought the most chairs?",
+     {"q_type": "comparison", "dimension": "customer_name", "filters": {"sub_category": "Chairs"}}, None),
+    ("Did our new website increase sales?", {"q_type": "experiment"}, None),
     # vague -> should ask back
     ("Is that good?", {"clear": False}, None),
     # follow-ups
