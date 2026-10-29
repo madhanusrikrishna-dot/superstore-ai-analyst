@@ -166,6 +166,15 @@ fair = ("**Why it matters:** With 98.1% of customers coming back in a later quar
 check("judging words are fine next to an extreme share (98.1% ... high)", verify.problems(
     fair, "Do customers come back?", coh.headline, coh.facts, coh.notes) == [],
       verify.problems(fair, "Do customers come back?", coh.headline, coh.facts, coh.notes))
+d17 = recipes.descriptive(conn, {**base, "q_type": "descriptive", "filters": {"year": "2017"}})
+words = ("**Why it matters:** Sales grew 20.4% vs 2016 to $733.2K, but the profit margin fell by 0.7 percentage "
+         "points to 12.7 percent.\n\n**Suggested action:** Check which regions lost margin in 2017.")
+check("'0.7 percentage points' matches '-0.7 pts' (real false alarm, 29 Oct)", verify.problems(
+    words, "Total sales and profit in 2017", d17.headline, d17.facts, d17.notes) == [],
+      verify.problems(words, "Total sales and profit in 2017", d17.headline, d17.facts, d17.notes))
+check("a made-up 'points' number is still caught", verify.problems(
+    words.replace("0.7 percentage", "3.9 percentage"), "Total sales and profit in 2017", d17.headline,
+    d17.facts, d17.notes) != [])
 bad_number = "**Why it matters:** Sales were $812.4K, 41.3% of the total.\n\n**Suggested action:** Grow."
 check("check catches invented numbers", any("numbers" in x for x in verify.problems(
     bad_number, "Total sales in 2016", d16.headline, d16.facts, d16.notes)))

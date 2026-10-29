@@ -18,9 +18,17 @@ NUMBER = re.compile(r"[-−]?\$?\d[\d,]*(?:\.\d+)?(?:\s?(?:%|K|M|pts)(?![a-z]))?
 FALLBACK_MARK = "_Explanation written by code"
 
 
+UNIT_WORDS = [(re.compile(r"(\d)\s*(?:percentage points?|pct\.? points?|points?|pp)\b", re.IGNORECASE), r"\1 pts"),
+              (re.compile(r"(\d)\s*(?:percent|per cent)\b", re.IGNORECASE), r"\1%")]
+
+
 def numbers_in(text: str) -> set:
+    """Numbers as written ('0.7 percentage points' counts as '0.7pts', '12 percent' as '12%')."""
+    text = text or ""
+    for pattern, repl in UNIT_WORDS:
+        text = pattern.sub(repl, text)
     out = set()
-    for m in NUMBER.findall(text or ""):
+    for m in NUMBER.findall(text):
         t = m.replace("$", "").replace(",", "").replace(" ", "").replace("−", "-").lstrip("-").lower()
         if t:
             out.add(t)
