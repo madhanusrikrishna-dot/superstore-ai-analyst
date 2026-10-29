@@ -87,7 +87,14 @@ def problems(narration: str, question: str, headline: str, facts: list, notes: l
 
     # judging words are fine if the code already used them, or if the answer shows a comparison
     text = re.sub(r"\bhigh-(value|volume|ticket)\b", "", narration, flags=re.IGNORECASE)   # names, not judgements
-    judged = {m.group(0).lower() for m in JUDGING.finditer(text)}
+    judged = set()
+    for sentence in re.split(r"(?<=[.!?])\s+", text):
+        # very large or very small shares speak for themselves: "98.1% came back, a high level" is fair,
+        # "30% is low" is not (low compared to what?)
+        shares = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)%", sentence)]
+        if any(s >= 90 or s <= 10 for s in shares):
+            continue
+        judged |= {m.group(0).lower() for m in JUDGING.finditer(sentence)}
     judged = {w for w in judged if not re.search(rf"\b{re.escape(w)}", allowed, re.IGNORECASE)}
     if judged and not COMPARISON.search(allowed):
         found.append("it judges a number (" + ", ".join(sorted(judged)) + ") with nothing shown to compare it with")

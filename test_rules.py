@@ -144,6 +144,11 @@ bad_cohort = ("**Why it matters:** A retention rate this low suggests that a sig
               "are not returning.\n\n**Suggested action:** Start a loyalty programme.")
 check("check catches 'low' with nothing to compare", verify.problems(
     bad_cohort, "Do customers come back?", coh.headline, coh.facts, coh.notes) != [])
+fair = ("**Why it matters:** With 98.1% of customers coming back in a later quarter, loyalty is high and "
+        "strong.\n\n**Suggested action:** Keep in touch with the 30.0% who buy in a typical quarter.")
+check("judging words are fine next to an extreme share (98.1% ... high)", verify.problems(
+    fair, "Do customers come back?", coh.headline, coh.facts, coh.notes) == [],
+      verify.problems(fair, "Do customers come back?", coh.headline, coh.facts, coh.notes))
 bad_number = "**Why it matters:** Sales were $812.4K, 41.3% of the total.\n\n**Suggested action:** Grow."
 check("check catches invented numbers", any("numbers" in x for x in verify.problems(
     bad_number, "Total sales in 2016", d16.headline, d16.facts, d16.notes)))
