@@ -82,6 +82,7 @@ def narrate(question: str, result: recipes.Result, params: dict, model: str = MO
         if not found:
             return text
         fix = "; ".join(found)
+        result.checks.append({"rejected": text, "problems": found})
     return verify.fallback(result.headline, result.notes, result.next_questions)
 
 

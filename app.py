@@ -143,6 +143,11 @@ def show(entry: dict, idx: int):
         st.markdown(f"**Data:** {len(df):,} order lines, {df['order_date'].min()} to {df['order_date'].max()}")
         for s in r.sql:
             st.code(s, language="sql")
+        if r.checks:
+            st.markdown("**AI explanation checks:** the automatic check rejected "
+                        f"{len(r.checks)} AI draft(s):")
+            for c in r.checks:
+                st.caption("✗ " + md("; ".join(c["problems"])))
         st.json(entry["params"], expanded=False)
 
     if r.table is not None and len(r.table):

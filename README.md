@@ -4,7 +4,7 @@ Ask business questions about the Superstore sales data in plain English. A local
 (via Ollama, free, no API key) decides **what type of question** it is, then **fixed methods in code**
 do the analysis, so the numbers are always calculated, never guessed.
 
-**Results:** 46/46 recipe checks · 7,131 wording-rule checks on 898 answers · 32/32 end-to-end questions with the real model (v1.0) · every answer shows its SQL.
+**Results:** 46/46 recipe checks · 7,131 wording-rule checks on 898 answers · 36/36 end-to-end questions with the real model (v1.1) · every answer shows its SQL.
 
 ## See it work
 

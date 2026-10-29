@@ -30,6 +30,7 @@ class Result:
     kpi_cards: bool = False
     extra_table: pd.DataFrame | None = None
     extra_title: str = ""
+    checks: list = field(default_factory=list)   # what verify.py rejected in the AI's explanation (if anything)
 
 
 def scope_text(filters: dict) -> str:

@@ -94,6 +94,7 @@ def main():
     rows, by_type, total_time = [], defaultdict(lambda: [0, 0]), 0.0
     fallback_used = False
     fallbacks = 0
+    fallback_log = []
     print(f"Testing {len(CASES)} questions with model {pipeline.MODEL}{' (quick)' if quick else ''}\n")
 
     for i, (question, expect, previous_q) in enumerate(CASES, 1):
@@ -126,6 +127,7 @@ def main():
                     problems.append("AI explanation unavailable")
                 elif FALLBACK_MARK in narration:
                     fallbacks += 1   # the check caught a bad AI explanation: safe, but counted
+                    fallback_log.append((i, question, result.checks))
                 else:
                     allowed = " ".join([question, headline, business_notes(), " ".join(result.notes),
                                         " ".join(f"{k} {v}" for k, v in result.facts)])
@@ -167,6 +169,19 @@ def main():
         f.write("\n## All results\n\n| # | Question | Result | Headline |\n|---|---|---|---|\n")
         for i, q, ok, probs, params, headline, source, secs in rows:
             f.write(f"| {i} | {q} | {'PASS' if ok else 'FAIL'} | {headline.replace('|', '/')} |\n")
+    if fallback_log:
+        with open("eval_report.md", "a", encoding="utf-8") as f:
+            f.write("\n## AI explanations replaced by the code-written one\n\n"
+                    "Check each: if the AI text was really wrong, the checker did its job; "
+                    "if it was fine, the checker is too strict.\n\n")
+            for i, q, checks in fallback_log:
+                f.write(f"**{i}. {q}**\n\n")
+                for n, c in enumerate(checks, 1):
+                    f.write(f"- Try {n} rejected because: {'; '.join(c['problems'])}\n"
+                            f"  > {c['rejected'][:600].replace(chr(10), ' ')}\n")
+                f.write("\n")
+        for i, q, checks in fallback_log:
+            print(f"  replaced: {i}. {q}  ->  " + " | ".join("; ".join(c["problems"]) for c in checks))
     print("\nFull report written to eval_report.md")
 
 
