@@ -7,13 +7,13 @@ charts.py - one chart style per question type, so the chart always fits the ques
 import altair as alt
 import pandas as pd
 
-# one palette for every chart (matches .streamlit/config.toml)
-BLUE = "#2F6F9F"     # main series (steel blue: neutral, not "good" or "bad")
-RED = "#C2412D"      # losses
-GREEN = "#0F7B6C"    # profit teal
-GREY = "#5C6B77"     # labels
-ORANGE = "#D9A21B"   # highlight / forecast (shelf-tag yellow, darkened for contrast on white)
-FONT = "Public Sans, Helvetica, Arial, sans-serif"
+# one palette for every chart (matches .streamlit/config.toml, dark theme)
+BLUE = "#7FB2E5"     # main series: soft blue, readable on black
+RED = "#FF6B5B"      # losses
+GREEN = "#4FD1A5"    # profit
+GREY = "#9AA4AD"     # labels
+ORANGE = "#F2C94C"   # highlight / forecast
+FONT = "Barlow, Helvetica, Arial, sans-serif"
 
 
 @alt.theme.register("superstore", enable=True)
@@ -21,11 +21,11 @@ def _theme():
     return {"config": {
         "font": FONT,
         "view": {"stroke": None},
-        "axis": {"labelColor": GREY, "titleColor": GREY, "gridColor": "#E6EBEA", "domainColor": "#CBD3D1",
+        "axis": {"labelColor": GREY, "titleColor": GREY, "gridColor": "#22272B", "domainColor": "#3A4248",
                  "labelFontSize": 12, "titleFontWeight": 500},
         "legend": {"labelColor": GREY, "titleColor": GREY, "labelFont": FONT, "titleFont": FONT},
         "text": {"font": FONT, "fontSize": 11},
-        "title": {"color": "#1D2B36", "fontSize": 14, "fontWeight": 600, "anchor": "start"},
+        "title": {"color": "#F2F4F5", "fontSize": 14, "fontWeight": 600, "anchor": "start"},
     }}
 
 

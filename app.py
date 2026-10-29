@@ -24,38 +24,48 @@ st.set_page_config(page_title="Superstore AI Analyst", page_icon="📊", layout=
 
 STYLE = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Semi+Condensed:wght@600;700&display=swap');
 html, body, p, li, h1, h2, h3, h4, label, input, textarea, td, th,
 [data-testid="stMetricValue"], [data-testid="stMetricLabel"], [data-testid="stMetricDelta"] {
-  font-family: 'Public Sans', sans-serif; }
-/* let example questions wrap instead of being cut off */
-.stButton button p { white-space: normal; text-align: left; line-height: 1.3; }
-.stButton button { height: auto; min-height: 2.6rem; justify-content: flex-start; }
+  font-family: 'Barlow', sans-serif; }
 [data-testid="stMetricValue"], .stMarkdown td { font-variant-numeric: tabular-nums; }
-.block-container { padding-top: 2.2rem; max-width: 1180px; }
+.block-container { padding-top: 2.4rem; max-width: 1180px; }
 
-/* the welcome screen */
-.hero h1 { font-size: 2.6rem; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 .6rem; color: #1D2B36; }
-.hero p { font-size: 1.05rem; color: #4A5A66; max-width: 62ch; margin: 0 0 1.6rem; }
-.group-title { font-weight: 600; color: #1D2B36; margin: .2rem 0 .4rem; }
+/* thin white outlines instead of filled boxes */
+.stButton button { background: transparent; border: 1px solid rgba(255,255,255,.45); border-radius: 2px;
+                   height: auto; min-height: 2.6rem; justify-content: flex-start; }
+.stButton button:hover { border-color: #FFFFFF; background: rgba(255,255,255,.06); }
+.stButton button p { white-space: normal; text-align: left; line-height: 1.3; color: #F2F4F5; }
+[data-testid="stExpander"] details { border: 1px solid rgba(255,255,255,.25); border-radius: 2px; }
+[data-testid="stChatInput"] { border-radius: 2px; }
 
-/* "I understood" = a shelf price tag: the one bold element on the page */
-.tag { display: inline-flex; align-items: center; gap: .55rem; background: #F2C94C; color: #1D2B36;
-       padding: .38rem .9rem .38rem 1.35rem; border-radius: 3px 8px 8px 3px; position: relative;
-       font-size: .92rem; margin: .1rem 0 .3rem; }
+/* the welcome screen: one big statement, like a launch page */
+.hero h1 { font-family: 'Barlow Semi Condensed', sans-serif; font-size: 3.4rem; line-height: 1.0;
+           font-weight: 700; text-transform: uppercase; letter-spacing: .01em; color: #FFFFFF; margin: 0 0 .9rem; }
+.hero p { font-size: 1.08rem; color: #9AA4AD; max-width: 60ch; margin: 0 0 2rem; }
+.hero { border-bottom: 1px solid rgba(255,255,255,.18); margin-bottom: 1.6rem; padding-bottom: .4rem; }
+.group-title { font-weight: 600; color: #FFFFFF; margin: .2rem 0 .5rem; }
+
+/* "I understood" = a white price tag (monochrome) */
+.tag { display: inline-flex; align-items: center; gap: .55rem; background: #FFFFFF; color: #000000;
+       padding: .38rem .9rem .38rem 1.35rem; border-radius: 2px 8px 8px 2px; position: relative;
+       font-size: .95rem; margin: .1rem 0 .3rem; }
 .tag::before { content: ""; position: absolute; left: .5rem; top: 50%; width: .42rem; height: .42rem;
-               margin-top: -.21rem; border-radius: 50%; background: #FFFFFF; }
-.tag b { font-weight: 700; }
-.tag-source { font-size: .8rem; color: #5C6B77; margin: 0 0 .8rem; }
+               margin-top: -.21rem; border-radius: 50%; background: #000000; }
+.tag b { font-weight: 600; }
+.tag-source { font-size: .82rem; color: #9AA4AD; margin: 0 0 .8rem; }
 
 /* answer headline and key numbers */
-[data-testid="stChatMessage"] h3 { font-size: 1.35rem; line-height: 1.3; font-weight: 650; color: #1D2B36; }
-[data-testid="stMetric"] { background: #F2F5F4; border-radius: 6px; padding: .7rem .9rem; }
-[data-testid="stMetricLabel"] p { color: #4A5A66; font-size: .85rem; }
+[data-testid="stChatMessage"] h3 { font-family: 'Barlow Semi Condensed', sans-serif; font-size: 1.55rem;
+                                    line-height: 1.25; font-weight: 600; color: #FFFFFF; }
+[data-testid="stMetric"] { background: transparent; border: 1px solid rgba(255,255,255,.22); border-radius: 2px;
+                           padding: .7rem .9rem; }
+[data-testid="stMetricLabel"] p { color: #9AA4AD; font-size: .88rem; }
+[data-testid="stMetricValue"] { color: #FFFFFF; }
 
 /* sidebar */
-[data-testid="stSidebar"] { border-right: 1px solid #E1E7E5; }
-.how li { margin-bottom: .35rem; color: #34444F; }
+[data-testid="stSidebar"] { border-right: 1px solid rgba(255,255,255,.12); }
+.how li { margin-bottom: .35rem; color: #C9D0D5; }
 </style>
 """
 st.markdown(STYLE, unsafe_allow_html=True)

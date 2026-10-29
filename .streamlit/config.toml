@@ -1,10 +1,10 @@
-# Look and feel of the app (Streamlit reads this automatically)
+# Look and feel of the app (Streamlit reads this automatically): dark, monochrome
 [theme]
-base = "light"
-primaryColor = "#0F7B6C"          # profit teal: buttons, links, focus
-backgroundColor = "#FFFFFF"
-secondaryBackgroundColor = "#F2F5F4"
-textColor = "#1D2B36"             # slate ink
+base = "dark"
+primaryColor = "#FFFFFF"
+backgroundColor = "#000000"
+secondaryBackgroundColor = "#111315"
+textColor = "#F2F4F5"
 
 [client]
 toolbarMode = "viewer"            # hides the developer "Deploy" button for visitors
