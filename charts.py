@@ -13,7 +13,7 @@ RED = "#C2412D"      # losses
 GREEN = "#0F7B6C"    # profit teal
 GREY = "#5C6B77"     # labels
 ORANGE = "#D9A21B"   # highlight / forecast (shelf-tag yellow, darkened for contrast on white)
-FONT = "Public Sans"
+FONT = "Public Sans, Helvetica, Arial, sans-serif"
 
 
 @alt.theme.register("superstore", enable=True)
@@ -23,7 +23,8 @@ def _theme():
         "view": {"stroke": None},
         "axis": {"labelColor": GREY, "titleColor": GREY, "gridColor": "#E6EBEA", "domainColor": "#CBD3D1",
                  "labelFontSize": 12, "titleFontWeight": 500},
-        "legend": {"labelColor": GREY, "titleColor": GREY},
+        "legend": {"labelColor": GREY, "titleColor": GREY, "labelFont": FONT, "titleFont": FONT},
+        "text": {"font": FONT, "fontSize": 11},
         "title": {"color": "#1D2B36", "fontSize": 14, "fontWeight": 600, "anchor": "start"},
     }}
 

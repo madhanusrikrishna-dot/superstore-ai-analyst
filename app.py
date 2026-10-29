@@ -10,6 +10,9 @@ How it answers a question:
 Run:  python -m streamlit run app.py
 """
 
+import html
+import re
+
 import streamlit as st
 
 import pipeline
@@ -18,6 +21,44 @@ from data import DIMENSIONS, METRIC_LABELS, METRICS, load
 from router import Q_TYPES
 
 st.set_page_config(page_title="Superstore AI Analyst", page_icon="📊", layout="wide")
+
+STYLE = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700&display=swap');
+html, body, p, li, h1, h2, h3, h4, label, input, textarea, td, th,
+[data-testid="stMetricValue"], [data-testid="stMetricLabel"], [data-testid="stMetricDelta"] {
+  font-family: 'Public Sans', sans-serif; }
+/* let example questions wrap instead of being cut off */
+.stButton button p { white-space: normal; text-align: left; line-height: 1.3; }
+.stButton button { height: auto; min-height: 2.6rem; justify-content: flex-start; }
+[data-testid="stMetricValue"], .stMarkdown td { font-variant-numeric: tabular-nums; }
+.block-container { padding-top: 2.2rem; max-width: 1180px; }
+
+/* the welcome screen */
+.hero h1 { font-size: 2.6rem; line-height: 1.1; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 .6rem; color: #1D2B36; }
+.hero p { font-size: 1.05rem; color: #4A5A66; max-width: 62ch; margin: 0 0 1.6rem; }
+.group-title { font-weight: 600; color: #1D2B36; margin: .2rem 0 .4rem; }
+
+/* "I understood" = a shelf price tag: the one bold element on the page */
+.tag { display: inline-flex; align-items: center; gap: .55rem; background: #F2C94C; color: #1D2B36;
+       padding: .38rem .9rem .38rem 1.35rem; border-radius: 3px 8px 8px 3px; position: relative;
+       font-size: .92rem; margin: .1rem 0 .3rem; }
+.tag::before { content: ""; position: absolute; left: .5rem; top: 50%; width: .42rem; height: .42rem;
+               margin-top: -.21rem; border-radius: 50%; background: #FFFFFF; }
+.tag b { font-weight: 700; }
+.tag-source { font-size: .8rem; color: #5C6B77; margin: 0 0 .8rem; }
+
+/* answer headline and key numbers */
+[data-testid="stChatMessage"] h3 { font-size: 1.35rem; line-height: 1.3; font-weight: 650; color: #1D2B36; }
+[data-testid="stMetric"] { background: #F2F5F4; border-radius: 6px; padding: .7rem .9rem; }
+[data-testid="stMetricLabel"] p { color: #4A5A66; font-size: .85rem; }
+
+/* sidebar */
+[data-testid="stSidebar"] { border-right: 1px solid #E1E7E5; }
+.how li { margin-bottom: .35rem; color: #34444F; }
+</style>
+"""
+st.markdown(STYLE, unsafe_allow_html=True)
 
 
 @st.cache_resource
@@ -112,19 +153,32 @@ def show(entry: dict, idx: int):
 
     r: recipes.Result = entry["result"]
     _, _, method = Q_TYPES.get(r.q_type, Q_TYPES["other"])
-    st.info(f"**I understood:** {md(understood_text(entry['params']))}  \n_routed by {entry['source']}_")
+    st.markdown(f'<div class="tag"><b>I understood</b> {html.escape(understood_text(entry["params"]))}</div>'
+                f'<div class="tag-source">Routed by {html.escape(entry["source"])}. Not right? Change it below.</div>',
+                unsafe_allow_html=True)
     st.markdown(f"### {md(r.headline)}")
 
     if r.kpi_cards and r.facts:
+        facts = dict(r.facts)
+        deltas = {}
+        for label, value in r.facts:                 # "Sales vs 2015: +29.5%" -> arrow on the Sales card
+            m = re.match(r"Sales vs (\d{4})", label)
+            if m:
+                deltas["Sales"] = f"{value} vs {m.group(1)}"
+            m = re.match(r"Profit margin in (\d{4})", label)
+            if m and "Profit margin" in facts:
+                pts = float(facts["Profit margin"].rstrip("%")) - float(value.rstrip("%"))
+                deltas["Profit margin"] = f"{pts:+.1f} pts vs {m.group(1)}"
+        shown = [(k, v) for k, v in r.facts if not re.match(r"(Sales vs|Profit margin in) \d{4}", k)]
         cols = st.columns(4)
-        for i, (label, value) in enumerate(r.facts):
-            cols[i % 4].metric(label, value)
+        for i, (label, value) in enumerate(shown):
+            cols[i % 4].metric(label, value, delta=deltas.get(label))
     elif r.facts:
         rows = "\n".join(f"| {md(k)} | **{md(v)}** |" for k, v in r.facts)
         st.markdown("| Key number | Value |\n|---|---|\n" + rows)
 
     if r.chart is not None:
-        st.altair_chart(r.chart, width="stretch")
+        st.altair_chart(r.chart, width="stretch", theme=None)
 
     if entry["narration"]:
         st.markdown(md(entry["narration"]))
@@ -172,32 +226,46 @@ for key, default in (("history", []), ("pending", None), ("edit", None)):
     if key not in st.session_state:
         st.session_state[key] = default
 
+EXAMPLES = {
+    "How are we doing?": ["Total sales and profit in 2017", "How is the West region doing in 2017?"],
+    "What changed?": ["Show monthly sales", "Show quarterly profit for the Furniture category"],
+    "Why?": ["Why is profit low in Texas in 2017?", "Does discount affect profit?"],
+    "Who are our customers?": ["Who are our best customers?", "Do customers come back after their first purchase?"],
+    "What's next?": ["Forecast sales for the next 3 months", "Which state lost the most money in 2017?"],
+}
+
 with st.sidebar:
-    st.header("📊 Superstore AI Analyst")
-    st.caption(f"Model: {pipeline.MODEL} (local, via Ollama)")
-    st.caption(f"Data: {len(df):,} order lines · {df['order_date'].min()[:4]}–{df['order_date'].max()[:4]}")
-    if st.button("Clear chat"):
+    st.markdown("### Superstore AI Analyst")
+    st.markdown('<ol class="how"><li>The AI reads your question and shows what it understood.</li>'
+                "<li>Tested SQL and Python code calculates every number.</li>"
+                "<li>The AI's explanation is checked before you see it.</li></ol>", unsafe_allow_html=True)
+    st.caption(f"Data: Superstore sales, {len(df):,} order lines, "
+               f"{df['order_date'].min()[:4]}–{df['order_date'].max()[:4]}")
+    st.caption(f"Model: {pipeline.MODEL}, running locally with Ollama")
+    if st.button("Clear chat", width="stretch"):
         st.session_state.history = []
         st.rerun()
-    st.subheader("Question types")
-    examples = {
-        "Q1 Descriptive": "Total sales and profit in 2017",
-        "Q2 Trend": "Show monthly sales",
-        "Q3 Comparison": "Which region has the lowest profit?",
-        "Q4 Diagnostic": "Why is profit low in the Central region?",
-        "Q5 Correlation": "Does discount affect profit?",
-        "Q6 Segmentation": "Who are our best customers?",
-        "Q8 Cohort": "Do customers come back after their first purchase?",
-        "Q10 Forecast": "Forecast sales for the next 3 months",
-    }
-    for label, q in examples.items():
-        if st.button(f"{label}: {q}", key=f"ex_{label}", width="stretch"):
-            st.session_state.pending = q
-            st.rerun()
-    st.caption("Q7 Funnel and Q9 A/B test need data Superstore doesn't have; the app will say so.")
+    with st.expander("Example questions"):
+        for group, qs in EXAMPLES.items():
+            for q in qs:
+                if st.button(q, key=f"side_{q}", width="stretch"):
+                    st.session_state.pending = q
+                    st.rerun()
+    st.caption("Funnel and A/B test questions need data Superstore doesn't have; the app says so.")
+    st.markdown("[Code, tests and demo on GitHub](https://github.com/madhanusrikrishna-dot/superstore-ai-analyst)")
 
-st.title("Superstore AI Analyst")
-st.caption("Ask a business question. The AI picks the question type; fixed methods in code do the maths.")
+if not st.session_state.history and not st.session_state.pending and not st.session_state.edit:
+    st.markdown('<div class="hero"><h1>Ask your sales data a question.</h1>'
+                f"<p>Superstore sales, {len(df):,} order lines from 2014 to 2017. The AI reads your question; "
+                "tested code does every calculation, and each answer shows its SQL.</p></div>",
+                unsafe_allow_html=True)
+    cols = st.columns(len(EXAMPLES))
+    for col, (group, qs) in zip(cols, EXAMPLES.items()):
+        col.markdown(f'<div class="group-title">{group}</div>', unsafe_allow_html=True)
+        for q in qs:
+            if col.button(q, key=f"hero_{q}", width="stretch"):
+                st.session_state.pending = q
+                st.rerun()
 
 for i, entry in enumerate(st.session_state.history):
     with st.chat_message("user"):
