@@ -24,7 +24,7 @@ streamlit run app.py          # opens http://localhost:8501 ; stop with Ctrl + C
 |---|---|---|
 | `python test_recipes.py` | 46 checks of every recipe vs hand-verified SQL | CSV |
 | `python test_rules.py` | ~7,000 wording-rule checks on 898 answers | CSV |
-| `python test_verify.py` | 30 checks of the explanation checker, from real bad answers | nothing |
+| `python test_verify.py` | 32 checks of the explanation checker, from real bad answers | nothing |
 | `python evaluate.py` | real questions through the real model; writes `eval_report.md` | CSV + Ollama |
 
 IMPORTANT: `Sample - Superstore.csv` is gitignored (not on GitHub) and Ollama is not in Claude's cloud session, so
@@ -47,17 +47,23 @@ Claude can only run `test_verify.py` there. The other suites must be run by Kris
 - Worst case for a bad AI explanation is a plainer code-written one, never a wrong sentence.
 - Each bug found in user testing becomes a test before it is fixed; general rules instead of one-off patches.
 
-## Status (5 Nov 2026)
-- GitHub `main` = v1.2 + explanation-checker fix (commit `fc42e5a`, merged by Krish). Tests on his PC on the first version of the fix: test_verify 26/26, test_rules 6,956 passed, test_recipes 46/46. The follow-up commit (sales/revenue + "significantly" checks) raised test_verify to 30 checks (30/30 in Claude's cloud run). `evaluate.py` after the merge: 37/37 correct.
-- That evaluate run: 9 of 37 AI explanations failed the check twice and were replaced by the code-written version. Cause: the AI kept using words the checker rejects ("significantly" 5 times; "driven by", "because", "over the years", "steadily") because the narrator prompt did not list them.
-- Branch `narrator-words` (commit `9fc69f6`) lists every rejected word in the narrator prompt. NEXT: Krish runs `python evaluate.py` on that branch; if fewer than 9 are replaced, merge it into main.
+## Status (5 Nov 2026, end of session)
+- GitHub `main` is up to date and merged (commit `ca71c5a`): v1.2 + the explanation-checker fix + the narrator prompt that lists every rejected word + the "quarters of 2017" false-alarm fix.
+- Tests on Krish's PC: `test_recipes` 46/46, `test_rules` 6,956 passed, `test_verify` 32/32, `evaluate.py` 37/37 correct (about 4 min).
+- In `evaluate.py`, 9 of 37 AI explanations (about 1 in 4) are still replaced by the code-written version. Cause: the 14B model keeps using words the checker rejects ("significantly", "because", "driver of", "contributor to") even when the prompt forbids them, so listing the words in the prompt did not reduce the count. The fallback is safe (numbers are right, text is plainer). Decision: leave it; it is the checker working as designed. Honest line for the README/interviews: "every explanation is checked; failing ones are replaced by a code-written one".
+- `PROJECT_NOTES.md` was added to `main` on 5 Nov 2026 so any new chat can continue from the repo.
 
 ## Known issues (small, not blocking)
-- "Which region has the highest sales?" still shows the code-written explanation (the AI's draft is rejected; reason not yet seen. Look at the rejected drafts in the expander).
-- A discount answer said "high-discount categories" although the app analysed discount bands, not categories (checker does not flag "categories" yet).
+- The AI's draft for "Which region has the highest sales?" is rejected, so that answer shows the code-written explanation (rejected drafts are visible under "How this was calculated").
+- A discount answer said "high-discount categories" although the app analysed discount bands, not categories (the checker does not flag "categories").
 - On "best customers" the suggested action is a real question but does not follow from the finding (win back at-risk customers).
-- README still says 36/36 and v1.1; update after the next evaluate run.
+- README still says 36/36 and v1.1 (now 37/37, and the checker has more rules); update it.
 - Manual testing of the 10 question types was paused at question 9 of 10 (as of 29 Oct).
+
+## Ideas for next time (none started)
+- Auto-delete size adverbs ("significantly") before checking, to cut the fallback rate.
+- Make the suggested action follow from the finding, not only be a valid next question.
+- Code walkthrough with Krish, file by file (router, pipeline, recipes, narrator, verify), so he can explain it in interviews.
 
 ## Working method (git)
 Claude cannot run the CSV-dependent tests, so: Claude commits to a BRANCH and pushes; Krish runs `git fetch`, `git checkout <branch>`, the tests and the app; if good: `git checkout main`, `git merge <branch>`, `git push`. If not, he pastes output and Claude fixes. A "unpushed commits" stop-hook warning has been a false alarm when `git ls-remote --heads origin <branch>` shows the same commit as local.
