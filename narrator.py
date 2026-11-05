@@ -15,11 +15,12 @@ def business_notes() -> str:
 
 
 def explain(question: str, headline: str, facts: list, notes: list, model: str, scope: str = "",
-            fix: str = "") -> str:
+            fix: str = "", next_questions: list | None = None) -> str:
     import ollama
 
     facts_text = "\n".join(f"- {k}: {v}" for k, v in facts)
     notes_text = "\n".join(f"- {n}" for n in notes)
+    next_text = "\n".join(f"- {q}" for q in (next_questions or [])) or "- (none)"
     system = f"""You are a senior data analyst explaining results to a store manager.
 Business context:
 {business_notes()}
@@ -40,12 +41,20 @@ Rules:
 - When counts and totals are listed, use them: "118 lines lost $16.0K" says more than an average.
 - Lead with the headline's finding; do not swap in a different, smaller point.
 - Words must match the numbers: "majority" or "most" only for more than 50%; "slight" only for under 5%.
+- Do not use time words ("consistently", "always", "steadily", "every year") unless year-by-year or month-by-month
+  numbers are listed. One total over several years does not show consistency.
+- The numbers show WHAT happened, never WHY. Do not write "key driver", "driving", "contributed to", "because",
+  "due to" or "success". Do not mention growth unless a change over time is listed. Do not mention profit or
+  margin unless a profit or margin number is listed.
+- Never turn a share into words like "a third", "a quarter" or "half". Write the exact percentage that is listed.
 - Write exactly two short parts:
-  **Why it matters:** 2 sentences on what this means for the business.
-  **Suggested action:** 1 sentence with a concrete next step.
+  **Why it matters:** 2 sentences on what the listed numbers say, using only those numbers.
+  **Suggested action:** 1 sentence. Copy ONE of the Next questions below word for word and say it is the next
+  thing to check. Do not name causes or factors (pricing, discounts, customer segments, marketing, strategies)
+  that are not in the numbers. If there are no Next questions, say to check the result data before acting.
 - Plain English, no SQL, no bullet lists."""
     user = (f"Question: {question}\nScope of the numbers: {scope}\nHeadline: {headline}\n"
-            f"Key numbers:\n{facts_text}\nNotes:\n{notes_text}")
+            f"Key numbers:\n{facts_text}\nNotes:\n{notes_text}\nNext questions:\n{next_text}")
     if fix:   # second try after the automatic check rejected the first one
         user += f"\n\nYour previous explanation was rejected by an automatic check: {fix}\nWrite it again without these problems."
     reply = ollama.chat(model=model, messages=[{"role": "system", "content": system},

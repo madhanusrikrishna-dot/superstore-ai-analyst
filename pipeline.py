@@ -87,10 +87,12 @@ def narrate(question: str, result: recipes.Result, params: dict, model: str = MO
     fix = ""
     for _ in range(2):
         try:
-            text = narrator.explain(question, result.headline, result.facts, result.notes, model, scope=scope, fix=fix)
+            text = narrator.explain(question, result.headline, result.facts, result.notes, model, scope=scope, fix=fix,
+                                    next_questions=result.next_questions)
         except Exception:
             return "_AI explanation unavailable (is Ollama running?). The numbers above come from code and are still valid._"
-        found = verify.problems(text, question, result.headline, result.facts, result.notes)
+        found = verify.problems(text, question, result.headline, result.facts, result.notes,
+                                next_questions=result.next_questions)
         if not found:
             return text
         fix = "; ".join(found)
