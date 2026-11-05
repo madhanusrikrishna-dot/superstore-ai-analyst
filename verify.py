@@ -135,6 +135,8 @@ def _fraction_problems(text: str, pcts: list) -> list:
     out = []
     for m in FRACTION.finditer(text):
         qual, count, unit = m.group(1), m.group(2), m.group(3).lower()
+        if count is None and unit not in ("half", "halves"):
+            continue        # "the last four quarters of 2017" is time, not a fraction; "a quarter of" is checked
         target = COUNT_WORD.get(count.lower() if count else None, 1) * FRACTION_VALUE[unit] * 100
         qual = (qual or "").lower()
         if qual in ("over", "more than", "above", "just over"):

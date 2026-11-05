@@ -113,6 +113,16 @@ for text, share, ok in [
     check(f"number words: '{text}' with {share} -> {'pass' if ok else 'reject'}",
           (probs(text, case) == []) == ok, str(probs(text, case)))
 
+# ---- real false alarm (evaluate.py, 5 Nov): "quarters of 2017" is time, not a fraction
+QTR = {"question": "Quarterly sales trend for the West region", "headline": "West sales by quarter",
+       "facts": [("Share of year in Q4", "32.9%"), ("Q4 share, another year", "69.1%")], "notes": []}
+check("'the last four quarters of 2017' is not read as a fraction", probs(
+    "**Why it matters:** Sales rose in the last four quarters of 2017.\n\n**Suggested action:** Check the result data.",
+    QTR) == [], str(probs("Sales rose in the last four quarters of 2017.", QTR)))
+check("'a quarter of' is still checked against the shares", probs(
+    "**Why it matters:** A quarter of sales came in Q4.\n\n**Suggested action:** Check the result data.",
+    {**QTR, "facts": [("Q4 share", "32.9%")]}) != [])
+
 # ---- words are fine when the code itself used them (nothing is blocked for no reason)
 TREND = {"question": "Show monthly sales", "headline": "Sales grew 20.4% vs 2016 to $733.2K",
          "facts": [("Sales vs 2016", "+20.4%")], "notes": []}
