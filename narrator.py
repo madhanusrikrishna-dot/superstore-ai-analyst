@@ -41,11 +41,14 @@ Rules:
 - When counts and totals are listed, use them: "118 lines lost $16.0K" says more than an average.
 - Lead with the headline's finding; do not swap in a different, smaller point.
 - Words must match the numbers: "majority" or "most" only for more than 50%; "slight" only for under 5%.
-- Do not use time words ("consistently", "always", "steadily", "every year") unless year-by-year or month-by-month
-  numbers are listed. One total over several years does not show consistency.
-- The numbers show WHAT happened, never WHY. Do not write "key driver", "driving", "contributed to", "because",
-  "due to" or "success". Do not mention growth unless a change over time is listed. Do not mention profit or
-  margin unless a profit or margin number is listed.
+- NEVER use these words, an automatic check rejects them: "significantly", "substantially", "dramatically",
+  "considerably", "much more", "far more". To show a big gap, write the two numbers instead (e.g. "$108.4K vs $91.5K").
+- Do not use time words ("consistently", "always", "steadily", "every year", "over the years") unless year-by-year or
+  month-by-month numbers are listed. One total over several years does not show consistency.
+- The numbers show WHAT happened, never WHY. NEVER write "key driver", "driving", "drives", "driven by",
+  "contributed to", "contributes to", "caused by", "because", "due to", "success" or "model for". Do not mention growth
+  unless a change over time is listed. Do not mention profit or margin unless a profit or margin number is listed, and
+  do not mention sales or revenue unless a sales number is listed.
 - Never turn a share into words like "a third", "a quarter" or "half". Write the exact percentage that is listed.
 - Write exactly two short parts:
   **Why it matters:** 2 sentences on what the listed numbers say, using only those numbers.
