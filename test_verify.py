@@ -87,6 +87,18 @@ good_profit = ("**Why it matters:** West earned $108.4K in profit, 37.9% of the 
                "money.\n\n**Suggested action:** Next, check Show monthly profit for West.")
 check("an honest profit answer passes", probs(good_profit, PROFIT) == [], str(probs(good_profit, PROFIT)))
 
+# ---- the profit answer that PASSED the first version (16:56, 5 Nov): "significantly more revenue" is not shown
+slipped = ("**Why it matters:** The West region has the highest profit at $108.4K, accounting for 37.9% of the total "
+           "profit over 2014–2017. This indicates that the West region is the most profitable, generating "
+           "significantly more revenue than the other regions.\n\n**Suggested action:** Show monthly profit for West.")
+p = " | ".join(probs(slipped, PROFIT))
+check("catches 'revenue' when only profit numbers are shown", "sales or revenue" in p, p)
+check("catches 'significantly' (no significance test exists)", "significantly" in p, p)
+check("a profit answer that sticks to profit numbers passes",
+      probs(good_profit, PROFIT) == [], str(probs(good_profit, PROFIT)))
+check("a sales answer may say 'sales' (shown), and the action may quote a profit question",
+      probs(good_sales, SALES) == [], str(probs(good_sales, SALES)))
+
 # ---- number words
 for text, share, ok in [
         ("Over a third of sales came from West.", "31.6%", False),
@@ -96,7 +108,7 @@ for text, share, ok in [
         ("Less than a third of sales came from West.", "31.6%", True),
         ("Half of the profit came from West.", "52.0%", True),
         ("Half of the profit came from West.", "31.6%", False)]:
-    case = {"question": "q", "headline": f"West share of profit {share}", "facts": [("West share of profit", share)],
+    case = {"question": "q", "headline": f"West share of sales and profit {share}", "facts": [("West share of sales and profit", share)],
             "notes": []}
     check(f"number words: '{text}' with {share} -> {'pass' if ok else 'reject'}",
           (probs(text, case) == []) == ok, str(probs(text, case)))

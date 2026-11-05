@@ -99,6 +99,15 @@ CAUSE_WORDS = re.compile(r"\b(key driver|main driver|major driver|driver of|driv
 GROWTH_WORDS = re.compile(r"\b(growth|growing|grow|grew|grown)\b", re.IGNORECASE)
 TIME_COMPARISON = re.compile(r"\bvs\b|compared with|previous|last year|yoy|mom|change|grew|growth|rose|fell|"
                              r"increase|decline|trend|forecast", re.IGNORECASE)
+# Sizes the app never measured (there is no significance test): show the numbers instead of "significantly".
+SIZE_WORDS = re.compile(r"\b(significantly|substantially|dramatically|vastly|considerably|massively|"
+                        r"far more|much more)\b", re.IGNORECASE)
+# A metric the answer never showed: profit talk needs profit numbers, sales/revenue talk needs sales numbers.
+METRIC_TALK = [
+    ("profit or margin", re.compile(r"\b(profit\w*|margins?|loss(?:es)?)\b", re.IGNORECASE),
+     re.compile(r"profit|margin|loss", re.IGNORECASE)),
+    ("sales or revenue", re.compile(r"\b(sales|revenue)\b", re.IGNORECASE), re.compile(r"sales|revenue", re.IGNORECASE)),
+]
 # Things the app never analysed: naming them as the story or the next step is guessing.
 # (regex for the word in the explanation, regex that must appear in the code's own text to allow it)
 UNANALYSED = [
@@ -197,14 +206,17 @@ def problems(narration: str, question: str, headline: str, facts: list, notes: l
                      "); the numbers show what happened, not why")
     if GROWTH_WORDS.search(scan) and not TIME_COMPARISON.search(allowed):
         found.append("it talks about growth, but no change over time is shown")
-    # profit talk: "Why it matters" needs profit numbers; the action may also mention what a suggested question names
+    # profit / sales talk: "Why it matters" needs those numbers; the action may also mention what a suggested
+    # question names ("Compare profit by region")
     why, _, action = scan.partition("**Suggested action:**")
-    profit_word, profit_seen = re.compile(r"\b(profit\w*|margins?|loss(?:es)?)\b", re.IGNORECASE), re.compile(
-        r"profit|margin|loss", re.IGNORECASE)
     action_allowed = allowed + " " + " ".join(next_questions or [])
-    if (profit_word.search(why) and not profit_seen.search(allowed)) or \
-            (profit_word.search(action) and not profit_seen.search(action_allowed)):
-        found.append("it talks about profit or margin, but this answer shows no profit numbers")
+    for label, word_re, seen_re in METRIC_TALK:
+        if (word_re.search(why) and not seen_re.search(allowed)) or \
+                (word_re.search(action) and not seen_re.search(action_allowed)):
+            found.append(f"it talks about {label}, but this answer shows no {label} numbers")
+    if unseen(SIZE_WORDS):
+        found.append("it says " + ", ".join(f"'{w}'" for w in unseen(SIZE_WORDS)) +
+                     ", which the numbers do not measure; give the numbers instead")
     for word_re, allow_re in UNANALYSED:
         for m in re.finditer(word_re, scan, re.IGNORECASE):
             if not re.search(allow_re, allowed_l):
